@@ -75,7 +75,7 @@ io.on('connection', function(socket){
             player.name=  empName;
             player.isOnline = true;
             players[empName] = player;
-            socket.emit('loginSuccess');
+            socket.emit('loginSuccess', empName);
             io.sockets.emit('system', empName, users.length, 'login');// 向所有连接到服务器的客户端发送当前登录用户的昵称
         }
     });
@@ -99,8 +99,39 @@ io.on('connection', function(socket){
         players[name].type = type;
         players[name].state = state;
         socket.broadcast.emit('event_pick', name, type, state);
+        var pickCount = 0;
+        for(var key in  players){
+            if(players[key].state == config.state.preparing || players[key].state == config.state.prepared){
+                pickCount++;
+                kdebug.info('pickcount:'+pickCount);
+                if(pickCount == 4){
+                    io.sockets.emit('game_prepare');
+                    kdebug.info('all picked, 游戏准备中...');
+                }
+            }
+        }   
+    });
+    socket.on('event_prepare', function(name, state){
+        kdebug.info('event_preprare...'+name+","+state);
+        players[name].state = state;
+        socket.broadcast.emit('event_prepare', name, state);
+        var prepareCount = 0;
+        for(var key in  players){
+            if(players[key].state == config.state.prepared){
+                prepareCount++;
+                if(prepareCount == 4){
+                    io.sockets.emit('game_start');
+                    kdebug.info('all prepared, 游戏开始...');
+                }
+            }
+        }        
     })
+
 })
+
+function forEach(ary, callback){
+    
+}
 
 //db util
 function searchEmp(empId){

@@ -109,6 +109,8 @@
         </div>
         <div id="gameWindow">  
             <h3>游戏窗口</h3>
+            <span>游戏状态：</span>
+            <span id='gameState'>选人状态</span>
         </div>
         <div id='operationWindow'>
             <div id="pickDiv">
@@ -172,7 +174,12 @@ var homeCampIdxAry = [
         '7,0','9,0',
         '7,16','9,16'
         ]; //大本营索引集
-var drawCamp =  function(camp, i, j, chess){
+var middleCampIdxAry = [
+    [6,6],[6,8],[6,10],
+    [8,6],[8,8],[8,10],
+    [10,6],[10,8],[10,10],
+];
+var drawCamp =  function(camp, i, j, player, _showChessName = false){
     if(homeCampIdxAry.in_array(String.prototype.concat(i,',',j))){
         camp.type = '大本营';
         camp.draw();
@@ -182,7 +189,11 @@ var drawCamp =  function(camp, i, j, chess){
         camp.draw();
     }else{
         camp.draw();
-        if(chess){
+        if(player){
+            var chess = player.getChess();
+            if(_showChessName){
+                chess.isShowName = true;
+            }
             camp.drawChess(chess);
         }
     }
@@ -218,6 +229,9 @@ var drawCamp =  function(camp, i, j, chess){
                             if(camp.type == '行营'){
                                 console.log('点击了行营');
                                 return;
+                            }
+                            if(camp.filledChess == null){
+                                return ;
                             }
                             console.log('点击了兵营');
                             camp.setClicked();
@@ -405,6 +419,14 @@ var drawCamp =  function(camp, i, j, chess){
             }
             Game.prototype = {
                 init: function(){
+                    // 中营
+                    for(var i =0 ; i < middleCampIdxAry.length; i++){
+                        var row = middleCampIdxAry[i][0];
+                        var col = middleCampIdxAry[i][1];
+                        var camp = chessBoard[row][col];
+                        camp.setSize(chessW, chessW);
+                        drawCamp(camp, row, col);
+                    }
                     // 下方 （玩家主视角)
                     for(var i = 11; i < 17; i++){
                         for(var j= 6; j < 11; j++){
@@ -555,9 +577,7 @@ var drawCamp =  function(camp, i, j, chess){
                         for(var j= 6; j < 11; j++){
                             var camp = chessBoard[i][j];
                             camp.setSize(chessW, chessH);
-                            var chess = hichat.player.getChess();
-                            chess.isShowName = true;
-                            drawCamp(camp, i, j , chess);
+                            drawCamp(camp, i, j , hichat.player , true);
                         }
                     }
                     /// 上方
@@ -566,8 +586,7 @@ var drawCamp =  function(camp, i, j, chess){
                             var camp = chessBoard[i][j];
                             camp.setSize(chessW, chessH);
                             camp.setTextRotate(-Math.PI);
-                             var chess = hichat.player.teamPlayer.getChess();
-                            drawCamp(camp, i, j ,chess);
+                            drawCamp(camp, i, j ,hichat.player.teamPlayer);
                         }
                     }
                     //  左方
@@ -576,8 +595,7 @@ var drawCamp =  function(camp, i, j, chess){
                             var camp = chessBoard[i][j];
                             camp.setSize(chessH, chessW);
                             camp.setTextRotate(Math.PI/2);
-                             var chess = hichat.player.lastPlayer.getChess();
-                            drawCamp(camp, i, j ,chess);
+                            drawCamp(camp, i, j ,hichat.player.lastPlayer);
                         }
                     }
                     // 右方
@@ -586,8 +604,7 @@ var drawCamp =  function(camp, i, j, chess){
                             var camp = chessBoard[i][j];
                             camp.setSize(chessH, chessW);
                             camp.setTextRotate(-Math.PI/2);
-                             var chess = hichat.player.nextPlayer.getChess();
-                            drawCamp(camp, i, j ,chess);
+                            drawCamp(camp, i, j ,hichat.player.nextPlayer);
                         }
                     }
                 },
@@ -656,6 +673,7 @@ var drawCamp =  function(camp, i, j, chess){
             this.player = null;
             this.firstCamp = null;
             this.secondCamp = null;
+            this.playerDic = {}; 
         }
 
         HiChat.prototype = {
@@ -693,22 +711,26 @@ var drawCamp =  function(camp, i, j, chess){
                 this.socket.on('nickExisted', function(){
                     document.getElementById('info').textContent = '用户已存在';
                 })
-                this.socket.on('loginSuccess', function(){
+                this.socket.on('loginSuccess', function(nickName){
                     document.getElementById('nickWrapper').style.display = 'none';
                     document.getElementById('messageInput').focus();
+                    that.player.name = nickName;
                 });
                 this.socket.on('system', function(nickName, userCount, type){
                     var msg = nickName + (type == 'login' ? ' 加入' : ' 离开');
                     that._displayNewMsg('system', msg, 'red');
                     document.getElementById('status').textContent = userCount+'个用户在线';
-                    var player = new Player(); 
-                    player.name = nickName;
+                    
+                    if(!that.playerDic.hasOwnProperty(nickName)){ //只有选人了 才会在玩家字典中加入数据 
+                        return;
+                    }
+                    var player = that.playerDic[nickName];
                     if(type == 'login'){
                         player.setOnline(true);
                     }else{
                         player.setOnline(false);
                     }
-                    that.refreshPlayerState(player);
+                     that.refreshPlayerState(player);
                 });
                 this.socket.on('newMsg', function(nickName, msg){
                     that._displayNewMsg(nickName, msg);
@@ -723,8 +745,26 @@ var drawCamp =  function(camp, i, j, chess){
                     player.name = name;
                     player.type = type;
                     player.state = state;
+                    player.isOnline = true;
+                    that.refreshPlayerState(player);
+                    that.playerDic[name] = player;
+                    document.getElementById(type+'Btn').setAttribute('disabled', 'true');
+                });
+                this.socket.on('event_prepare', function(name, state){
+                    var player = that.playerDic[name];
+                    player.state = state;
                     that.refreshPlayerState(player);
                 });
+                this.socket.on('game_start', function(){
+                    that._displayNewMsg('game', '所有玩家已准备，游戏开始');
+                    document.getElementById('gameState').innerHTML = config.state.started;
+                    document.getElementById('prepareBtn').setAttribute('disabled', true);
+                });
+                this.socket.on('game_prepare', function(){
+                    that._displayNewMsg('game', '所有玩家已选择席位，游戏准备中');
+                    document.getElementById('gameState').innerHTML = config.state.preparing;
+                });
+
                 //pick 
                 document.getElementById('pickDiv').addEventListener('click', function(e){
                     if(that.player.state == config.state.pick){
@@ -732,11 +772,13 @@ var drawCamp =  function(camp, i, j, chess){
                             e.target.disabled = true;
                             var dataType = e.target.getAttribute('data'); // 选择了其中一席，不能再改变
                             that.player.setType(dataType);
+                            that.player.isOnline = true;
                             that.player.setState(config.state.preparing);
                             that.socket.emit('event_pick', that.player.name, dataType, config.state.preparing);
                             that.refreshPlayerState(that.player);
                             that.player.initOtherPlayer();
                             that.player.renderPrepare();
+                            that.playerDic[that.player.name] = that.player;
                         }
                     }
                 });
@@ -760,6 +802,7 @@ var drawCamp =  function(camp, i, j, chess){
                         // prepareTip.innerHTML = '未准备';
                     }
                     that.refreshPlayerState(that.player);
+                    that.socket.emit('event_prepare', that.player.name, that.player.state);
                 });                
             },
             _displayNewMsg: function(user, msg, color){
