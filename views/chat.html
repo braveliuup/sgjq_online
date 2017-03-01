@@ -1,0 +1,109 @@
+<html>
+    <head>
+        <style>
+            #nickWrapper {
+                position: fixed;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                left: 0;
+                background-color: rgba(5, 5, 5, .6);
+                text-align: center;
+                color: #fff;
+                display: none;
+                padding-top: 200px;
+            }
+            #historyMsg {
+                border:1px solid;width:400px;height:200px;
+                overflow: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>聊天：</h1>
+        <div id='status'>   </div>
+        <div>
+            <div id="historyMsg" style=""></div>
+        </div>
+        <br>
+        <div>
+            <textarea id='messageInput'></textarea>
+            <input type="button" value="发送" id="sendBtn"/>
+        </div>
+        <div id="nickWrapper" >
+            <div id="info">
+            </div>
+            <input id='nickNameInput' value="" placeholder="输入开采夫员工编号"/> 
+            <input id="loginBtn"  value="ok" type="button" />
+        </div>
+            <script src="js/socket.io-1.4.5.js"></script>
+
+        <script>
+        window.onload = function(){
+            var hichat = new HiChat();
+            hichat.init();
+        }
+        var HiChat = function(){
+            this.socket = null;
+        }
+
+        HiChat.prototype = {
+            init: function(){
+                var that = this;
+                this.socket = io.connect();
+                this.socket.on('connect', function(){
+                    document.getElementById('nickWrapper').style.display = 'block';
+                    document.getElementById('nickNameInput').focus();
+                    
+                })
+                document.getElementById('sendBtn').addEventListener('click', function(){
+                    var messageInput = document.getElementById('messageInput'), 
+                        msg = messageInput.value;
+                        messageInput.value = '';
+                        messageInput.focus();
+                        if(msg.trim().length != 0){
+                            that.socket.emit('postMsg', msg); //把消息发送到服务器
+                            that._displayNewMsg('me', msg); //把自己的消息显示到自己的窗口中 
+                        }
+                }, false);
+                document.getElementById('loginBtn').addEventListener('click', function() {
+                    var nickName = document.getElementById('nickNameInput').value;
+                    //检查昵称输入框是否为空
+                    if (nickName.trim().length != 0) {
+                        //不为空，则发起一个login事件并将输入的昵称发送到服务器
+                        that.socket.emit('login', nickName);
+                    } else {
+                        //否则输入框获得焦点
+                        document.getElementById('nickNameInput').focus();
+                    };
+                }, false);
+
+                this.socket.on('nickExisted', function(){
+                    document.getElementById('info').textContent = '用户已存在';
+                })
+                this.socket.on('loginSuccess', function(){
+                    document.getElementById('nickWrapper').style.display = 'none';
+                    document.getElementById('messageInput').focus();
+                });
+                this.socket.on('system', function(nickName, userCount, type){
+                    var msg = nickName + (type == 'login' ? ' 加入' : ' 离开');
+                    that._displayNewMsg('system', msg, 'red');
+                    document.getElementById('status').textContent = userCount+'个用户在线';
+                });
+                this.socket.on('newMsg', function(nickName, msg){
+                    that._displayNewMsg(nickName, msg);
+                });
+            },
+            _displayNewMsg: function(user, msg, color){
+                var container = document.getElementById('historyMsg'),
+                    msgToDisplay = document.createElement('p'),
+                    date = new Date().toTimeString().substr(0, 8);
+                msgToDisplay.style.color = color || '#000';
+                msgToDisplay.innerHTML = user + '<span class="timespan">('+date+'):</span>'+msg;
+                container.appendChild(msgToDisplay);
+                container.scrollTop = container.scrollHeight; 
+            }
+        }
+        </script>
+    </body>
+</html>

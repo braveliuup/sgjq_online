@@ -1,0 +1,174 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1"> 
+        <style>
+            #red{
+                background: red;
+                width: 500px;
+                height: 200px;
+            }
+            #yellow{
+                background: yellow;
+                width: 500px;
+                height: 200px;
+            }
+            #blue{
+                background: blue;
+                width: 500px;
+                height: 200px;
+            }
+            #green{
+                background: green;
+                width: 500px;
+                height: 200px;
+            }
+            .flex{
+                display: flex;
+            }
+            .obstacle{
+                width: 100px;
+                height: 200px;
+            }
+            body{
+                margin: 0;
+                margin-left: 500px;
+                margin-top:10px;
+                font-weight: bold;
+                font-family: 微软雅黑;
+            }
+            button{
+                width: 200px;
+                height: 60px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 20px;
+            }
+            #obInfoDiv{
+                display: none;
+            }
+            #playerDiv{
+                display: none;
+            }
+             #redInfoDiv{
+                display: none;
+            }
+             #yellowInfoDiv{
+                display: none;
+            }
+             #blueInfoDiv{
+                display: none;
+            }
+             #greenInfoDiv{
+                display: none;
+            }
+        </style>
+        <script src="js/jquery.min.js"></script>
+    </head>
+    <body>
+        <div style="position:absolute;left:10px; top:440px;transform:rotate(90deg)">
+            <span  style="font-size:40px;border:2px solid red;padding:20px;">开采夫娱乐-四国军棋</span>
+        </div>
+        <div style="margin:10px">
+            <span>游戏正在进行中</span>
+
+        </div>
+        
+        <div>
+            <button style="width:800px;" onclick="showPlayerDiv()" >我要当选手</button>
+            <div id="playerDiv">
+                <div class="flex">
+                    <div class="obstacle"></div>
+                <div id="red">
+                    <button onclick="showRedInfoDiv()">选择红方</button>
+                    <span>已被xxx选择</span>
+                    <div id="redInfoDiv" >
+                        <span>输入开采夫工号才能进入游戏：</span><input value="" placeholder="请输入开采夫工号" />
+                        <input type="button" onclick="pickPlayer('red')" value="确定"/>
+                    </div>
+                </div>
+                </div>
+                 <div class="flex">
+                     <div  id="yellow" > 
+                        <button onclick="showYellowInfoDiv()">选择黄方</button>
+                        <span>已被xxx选择</span>
+                        <div id="yellowInfoDiv">
+                            <span>输入开采夫工号才能进入游戏：</span><input value="" placeholder="请输入开采夫工号" />
+                            <input type="button" value="确定"/>
+                        </div>
+                    </div>
+                <div  id="green" > 
+                       <button onclick="showGreenInfoDiv()">选择绿方</button>
+                       <span>已被xxx选择</span>
+                        <div id="greenInfoDiv">
+                            <span>输入开采夫工号才能进入游戏：</span><input value="" placeholder="请输入开采夫工号" />
+                            <input type="button" value="确定"/>
+                        </div>
+                </div>
+              </div>
+                <div class="flex">
+                    <div class="obstacle"> </div>
+                    <div id="blue" >
+                        <button onclick="showBlueInfoDiv()">选择蓝方</button>
+                        <span>已被xxx选择</span>
+                        <div id="blueInfoDiv">
+                            <span>输入开采夫工号才能进入游戏：</span><input value="" placeholder="请输入开采夫工号" />
+                            <input type="button" value="确定"/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <br>
+            <br>
+            <button style="width:800px;" onclick="showObInfoDiv()" >我要当观众</button>
+            <br/>
+            <br/>
+            <div id="obInfoDiv">
+                <span>输入开采夫工号才能进入游戏观看：</span><input value="" placeholder="请输入开采夫工号" />
+                <input type="button" value="确定"/>
+            </div>
+        </div>
+    </body>
+    <script>
+        var obInfoDiv = document.getElementById('obInfoDiv');
+        
+        function showObInfoDiv(){
+            obInfoDiv.style.display = "block";
+        }
+        function showPlayerDiv(){
+            playerDiv.style.display = "block";
+        }
+        function showRedInfoDiv(){
+            redInfoDiv.style.display = 'block';
+        }
+         function showYellowInfoDiv(){
+            yellowInfoDiv.style.display = 'block';
+        }
+         function showBlueInfoDiv(){
+            blueInfoDiv.style.display = 'block';
+        }
+         function showGreenInfoDiv(){
+            greenInfoDiv.style.display = 'block';
+        }
+        
+        function pickPlayer(color){
+            var data = {
+                id: 'kdr20151005'
+            }
+            $.post('player', data, function(res){
+                console.log(res);
+            })
+            
+        }   
+    </script>
+    <script src="js/socket.io-1.4.5.js"></script>
+    <script>
+        var socket = io('http://localhost:666');
+        socket.on('news', function(data){
+            console.log(data);
+            socket.emit('my other event', {my: 'data'});
+        })
+    </script>
+</html>

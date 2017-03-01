@@ -1,0 +1,686 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            html,body{
+                width: 100%;
+                margin: 0;
+                padding:0;
+            }
+            #canvas {
+            display: block;
+               margin: 0;
+               padding:0;
+            }
+            #gameWindow{
+                position:absolute;
+                right:10;
+                top:10;
+                width: 400px;
+                height: 300px;
+                border: 1px solid black;
+                overflow: auto;
+            }
+            #gameWindow div{
+                margin: 2px;
+            }
+            #chatWindow{
+                position:absolute;
+                right:10;
+                bottom:10;
+                width: 400px;
+                height: 500px;
+                border: 1px solid black;
+            }
+            #operationWindow{
+                position:absolute;
+                right:100;
+                top:340;
+                font-size: 24px;
+            }
+            #prepareBtn{
+                width:200px;
+                height:100px;
+                font-size: 24px;
+            }
+            #pickDiv {
+                display: block;
+                z-index: 100;
+            }
+            #pickDiv input{
+                width: 100px;
+                height: 40px;
+                font-size: 18px;
+            }
+            #prepareDiv{
+                display: none;
+            }
+            #nickWrapper {
+                position: fixed;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                left: 0;
+                background-color: rgba(5, 5, 5, .6);
+                text-align: center;
+                color: #fff;
+                display: block;
+                padding-top: 200px;
+                z-index: 888;
+            }
+
+            #nickNameInput{
+                width: 600px;
+                height: 100px;
+                font-size: 30px;
+            }
+            #loginBtn{
+                width: 100px;
+                height: 100px;
+                font-size: 30px;
+            }
+            #historyMsg {
+                border:1px solid;width:400px;height:350px;
+                overflow: auto;
+            }
+            #messageInput{
+                width: 350px;
+                height: 50px;
+            }
+           .messageSendDiv{
+               margin-top:5px;
+               display: flex;
+           }
+           #info{
+               font-size: 44px;
+               font-weight: bold;
+               color:red;
+               background-color: greenyellow;
+           }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas"></canvas>
+        <div id="nickWrapper" >
+            <div id="info">
+            </div>
+            <input id='nickNameInput' value="" placeholder="输入开采夫员工编号"/> 
+            <input id="loginBtn"  value="ok" type="button" />
+        </div>
+        <div id="gameWindow">  
+            <h3>游戏窗口</h3>
+        </div>
+        <div id='operationWindow'>
+            <div id="pickDiv">
+                <input value='选择红方' style="margin-left:105px;background:red" type="button" id="redBtn"/>
+                <br/>
+                <input value='选择黄方' style="margin-right:100px;background:yellow" type="button" id="yellowBtn"/>
+                <input value='选择蓝方' style="background:blue" type="button" id="blueBtn"/>
+                <br/>
+                <input value='选择绿方' style="margin-left:105px;background:green" type="button" id="greenBtn"/>
+                <br/>
+             <!--   <input value='我只想做个安静的美男(女)子' style="background:pink;width:320px;margin-top:10px" type="button" id="observerBtn"/>-->
+            </div>
+            <div id="prepareDiv">
+                <input value="准备" type="button" id="prepareBtn"/>
+            </div>
+            <!--<span id="prepareTip">未准备</span>-->
+        </div>
+        <div id="chatWindow">
+            <h3>聊天窗口</h3>
+            <div id='status'>在线人数</div>
+            <div id="historyMsg" style=""></div>
+            <div class="messageSendDiv">
+                <textarea id='messageInput'></textarea>
+                <input type="button" value="发送" id="sendBtn"/>
+            </div>
+        </div>
+    </body>
+    <script src="js/socket.io-1.4.5.js"></script>
+    <script>
+        !function(){
+            // kcharf array 扩展
+            Array.prototype.in_array = function(e)
+            {
+                for(i=0;i<this.length;i++)
+                {
+                if(this[i] == e)
+                return true;
+                }
+                return false;
+            }
+        }();
+        
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        window.onload = function(){
+            var hichat = new HiChat();
+            hichat.init();
+
+            canvas.setAttribute('width', window.innerWidth );       
+            canvas.setAttribute('height', window.innerHeight );       
+            var Vertex2d = function(x, y){
+                this.x = x;
+                this.y = y;
+            }
+            var bounds = {
+                lt: new Vertex2d(400,20),
+                rb: new Vertex2d(1320, 940),
+                vgap : function(){
+                    return (this.rb.y - this.lt.y) / (maxCols-1);
+                },
+                hgap : function(){
+                    return (this.rb.x - this.lt.x) / (maxRows-1);
+                }
+
+            }
+            var firstCamp = null;
+            var secondCamp = null;
+            canvas.addEventListener('mousedown', function(e){
+                if(me.state == config.state.prepared){ //已准备， 不能再调换棋子
+                    return;
+                }
+                for(var i = 0 ; i < chessBoard.length; i++){
+                    for(var j =0 ; j < chessBoard[i].length; j++){
+                        var camp = chessBoard[i][j];
+                        if(camp.in_camp(e.pageX, e.pageY)){
+                            if(camp.type == '行营'){
+                                console.log('点击了行营');
+                                return;
+                            }
+                            console.log('点击了兵营');
+                            camp.setClicked();
+                            if(firstCamp == null){
+                                firstCamp = camp;
+                            }else{
+                                if(firstCamp != camp){
+                                    secondCamp = camp;
+                                    // to  do thing
+                                    var tempChess = firstCamp.filledChess;
+                                    firstCamp.filledChess = secondCamp.filledChess;
+                                    secondCamp.filledChess = tempChess;
+                                    // 交换完  判断是否违反了规则
+                                    if(GameRule.violateChessPosition(firstCamp.filledChess, firstCamp.rowIdx, firstCamp.colIdx) || GameRule.violateChessPosition(secondCamp.filledChess, secondCamp.rowIdx, secondCamp.colIdx)){
+                                        secondCamp.filledChess = firstCamp.filledChess;
+                                        firstCamp.filledChess = tempChess; 
+                                    }
+                                    firstCamp.drawChess();
+                                    secondCamp.drawChess();
+                                    firstCamp = null;
+                                    secondCamp = null;
+                                }else{
+                                    firstCamp = null;
+                                    secondCamp = null;
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+
+            var GameRule = {
+                violateChessPosition: function(chess, row, col){
+                    var temp = row+','+col;
+                    if(chess.name == '军旗'  ){
+                        if(temp == '16,7' || temp == '16,9'){
+                            return false;
+                        }else{
+                            return true;
+                        }
+                    }
+                    if(chess.name == '炸弹'){
+                        if(row != 11){
+                            return false;
+                        }else{
+                            return true;
+                        }
+                    }
+                    return false;
+                } 
+            }
+
+            var Camp = function(x, y, rowIdx, colIdx){
+                this.type = '兵站';
+                this.originX = x;
+                this.originY = y;
+                this.fillColor = '#fff';
+                this.rowIdx = rowIdx;
+                this.colIdx = colIdx;
+                this.isClick = false;
+                this.filledChess = null; 
+                
+                this.draw = function(){
+                    ctx.strokeStyle = 'red';
+                    ctx.fillStyle = '#fff';
+                    ctx.strokeRect(this.x, this.y, this.chessWidth,this.chessHeight);
+                    ctx.fillRect(this.x, this.y,this.chessWidth,this.chessHeight);
+                    this.drawText(this.type);
+                }  
+
+                this.drawText = function(text){
+                    ctx.save(); 
+                    // 填充文字
+                    // 旋转之前将画布的中心位置translate到对象的中心点
+                    if(typeof(this.rotateRadian) !== 'undefined' ){
+                        ctx.translate(this.originX, this.originY);
+                        ctx.rotate(this.rotateRadian);
+                        ctx.translate(-this.originX, -this.originY);
+                    }
+                    ctx.font = 'normal 14px 微软雅黑';
+                    ctx.fillStyle = '#000';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(text, this.x+this.chessWidth/2, this.y + this.chessHeight/2);
+                    ctx.restore();
+                }
+
+                this.drawChess = function(chess){
+                    this.clearRect();
+                    if(chess){
+                        this.filledChess = chess;
+                    }
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(this.x , this.y ,this.chessWidth,this.chessHeight);
+                    ctx.font = 'bold 15px 微软雅黑';
+                    ctx.fillStyle = '#000';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.filledChess.name, this.x+this.chessWidth/2, this.y + this.chessHeight/2);
+                }
+
+                this.in_camp = function(pageX, pageY){
+                    if(pageX > this.x && pageX < this.x + this.chessWidth && pageY > this.y && pageY < this.y + this.chessHeight){
+                        return true;
+                    }
+                    return false;
+                }
+             
+            }
+            Camp.prototype ={
+                setSize: function(w, h){
+                    this.chessWidth = w;
+                    this.chessHeight = h;
+                    this.x = this.originX - this.chessWidth/2;
+                    this.y = this.originY - this.chessHeight/2
+                },
+                setTextRotate : function(radian){
+                    this.rotateRadian = radian; // 弧度 Math.PI
+                },
+                setFill: function(fillColor){
+                    this.fillColor = fillColor;
+                },
+                setClicked: function(){
+                    if(this.filledChess == null) return;
+                    this.isClick = this.isClick ? false: true;
+                    if(this.isClick){
+                      this.drawBounds();
+                    }else{
+                        this.clearBounds();
+                    }
+                },
+                drawBounds: function(){
+                    var that = this;
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#000';
+                    ctx.strokeRect(that.x, that.y, that.chessWidth, that.chessHeight);
+                },
+                clearBounds: function(){
+                    this.clearRect();
+                    this.draw();
+                    if(this.filledChess != null){
+                        this.drawChess(this.filledChess);
+                    }
+                },
+                clearRect: function(){
+                    this.isClick = false;
+                    ctx.clearRect(this.x-2, this.y-2, this.chessWidth+4, this.chessHeight+4);
+                }
+            };
+
+            var Chess = function(){
+                this.name = '';
+                this.fillColor = '#000';
+            }
+            
+            var Player = function(){
+                this.name = '';
+                this.type = 'red'; // red , yellow, blue, green
+                this.teammate = null;
+                this.nextPlayer = null;
+                this.lastPlayer = null;
+                this.chesses = [];
+                this.chessIdx = 0;
+                this.isOnline = false; 
+                this.state = config.state.preparing;
+            }
+
+            Player.prototype = {
+                initChess: function(){
+                    for(var i = 0 ; i < pieces.length; i++){
+                        var chess = new Chess();
+                        chess.name = pieces[i];
+                        chess.fillColor = color[this.type];
+                        this.chesses.push(chess); 
+                    }
+                },
+                getChess : function(){
+                    if(this.chessIdx == 25){
+                        this.chessIdx = 0;
+                    }
+                    return this.chesses[this.chessIdx++]
+                },
+                getType: function(){
+                    if(this.type == 'red'){
+                        return '红方';
+                    }else if(this.type == 'blue'){
+                        return '蓝方';
+                    }else if(this.type == 'yellow'){
+                        return '黄方';
+                    }else if(this.type == 'green'){
+                        return '绿方';
+                    }
+                }
+            }
+
+            var Observer = function(){
+                this.name = '';
+                this.isOnline = false; 
+            }
+            var chessBoard = [];
+            var pieces =['司令','军长','师长','师长','旅长','旅长','团长','团长','营长','营长','炸弹','炸弹','连长','连长','连长','排长','排长', '排长','工兵','工兵','工兵','地雷','地雷','军旗','地雷'];
+            var maxRows= 17;
+            var maxCols = 17;
+            var chessW = 50;
+            var chessH = 30;
+            var color = {
+                red: '#ff6666',
+                yellow: '#ffcc00',
+                blue: '#99ccff',
+                green: '#66cc00'
+            }
+
+            var Game = function(){
+                this.state = config.state.pick;
+            }
+            Game.prototype = {
+                renderUI: function(){
+                    if(this.state === config.state.prepare){
+                        renderPrepare();
+                    }
+                    if(this.state === config.state.pick){
+                        renderPick();
+                    }
+                }
+            }
+            
+            var config = {
+                state: {
+                    pick: '选人状态', 
+                    preparing: '准备中',
+                    prepared: '已准备',
+                    started: '已开始',
+                    over: '已结束'
+                }
+            }
+
+          
+
+            var me = new Player();
+            me.name = '小刘';
+            me.type = 'red';
+            me.initChess();
+
+            for(var i= 0 ; i < maxRows; i++){
+                chessBoard[i] = [];
+                var ctx = canvas.getContext('2d');
+                ctx.beginPath();
+                ctx.moveTo(bounds.lt.x, i*bounds.vgap()+bounds.lt.y);
+                ctx.lineTo(bounds.lt.x + bounds.hgap()*(maxRows-1), i*bounds.vgap() +bounds.lt.y);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(i*bounds.hgap()+bounds.lt.x, bounds.lt.y);
+                ctx.lineTo(i*bounds.hgap() + bounds.lt.x, bounds.lt.y +bounds.vgap()*(maxCols -1) );
+                ctx.stroke();
+                for(var j = 0 ; j < maxCols ; j++){
+                    var originX = bounds.lt.x + j*bounds.hgap() ;
+                    var originY =  bounds.lt.y + i*bounds.vgap();
+                    var camp = new Camp(originX, originY, i, j);
+                    chessBoard[i][j] = camp;
+                }
+            }
+
+           
+
+            
+            var moveCampIdxAry = [
+                '12,7','12,9','13,8','14,7','14,9', 
+                '4,7','4,9','3,8','2,7','2,9',
+                '7,4','9,4','8,3','7,2','9,2',
+                '7,12','9,12','8,13','7,14','9,14'
+                ]; //行营索引集
+            var homeCampIdxAry = [
+                '16,7','16,9', 
+                '0,7','0,9',
+                '7,0','9,0',
+                '7,16','9,16'
+                ]; //大本营索引集
+
+            var drawCamp = function(camp, i, j, b_drawChess= false){
+                    if(homeCampIdxAry.in_array(String.prototype.concat(i,',',j))){
+                        camp.type = '大本营';
+                        camp.draw();
+                    }
+                    if(moveCampIdxAry.in_array(String.prototype.concat(i,',',j))){
+                        camp.type= '行营';
+                        camp.draw();
+                    }else{
+                        camp.draw();
+                        if(b_drawChess){
+                            camp.drawChess(me.getChess());
+                        }
+                    }
+            }
+
+            var prepareBtn = document.getElementById('prepareBtn');
+            var prepareTip = document.getElementById('prepareTip');
+            var gameWin = document.getElementById('gameWindow');
+            var chatWin = document.getElementById('chatWindow');
+            var redBtn = document.getElementById('redBtn');
+            var blueBtn = document.getElementById('blueBtn');
+            var yellowBtn = document.getElementById('yellowBtn');
+            var on = function(ele, type, callback){
+                ele.addEventListener(type, callback, false);
+            } 
+            on(prepareBtn, 'click', function(event){
+                if(event.currentTarget.value == '准备'){
+                    prepareBtn.setAttribute('value', '取消准备');
+                    me.state = config.state.prepared;
+                    if(firstCamp){
+                        firstCamp.drawChess();
+                        firstCamp = null;
+                    }
+                    // prepareTip.innerHTML = '已准备';
+                }else{
+                    prepareBtn.setAttribute('value', '准备');
+                    me.state = config.state.preparing;
+                    // prepareTip.innerHTML = '未准备';
+                }
+            });
+
+            on(redBtn, 'click', function(e){
+                e.currentTarget.disabled = true;
+            });
+
+            var createPlayer = function(player){
+                var online = player.isOnline ? '在线' : '离线';
+                var name = player.name;
+                var state = player.state;
+                var color = player.getType();
+
+                var msg = '['+online+'] '+name+' '+state + ' '+ color;
+                var span = document.createElement('span');
+                span.innerHTML = msg;
+                var div = document.createElement('div');
+                div.appendChild(span);
+                gameWin.appendChild(div);
+            }
+
+            createPlayer(me);
+
+            var createObserver = function(){
+
+            }
+
+             var game = new Game();
+            game.renderUI();
+            
+            function renderPrepare(){
+                // 下方 （玩家主视角)
+                for(var i = 11; i < 17; i++){
+                    for(var j= 6; j < 11; j++){
+                        var camp = chessBoard[i][j];
+                        camp.setSize(chessW, chessH);
+                        drawCamp(camp, i, j , true);
+                    }
+                }
+                /// 上方
+                for(var i = 5; i >= 0; i--){
+                    for(var j= 6; j < 11; j++){
+                        var camp = chessBoard[i][j];
+                        camp.setSize(chessW, chessH);
+                        camp.setTextRotate(-Math.PI);
+                        drawCamp(camp, i, j );
+                    }
+                }
+                //  左方
+                for(var j = 5; j >=0; j--){
+                    for(var i= 6; i < 11; i++){
+                        var camp = chessBoard[i][j];
+                        camp.setSize(chessH, chessW);
+                        camp.setTextRotate(Math.PI/2);
+                        drawCamp(camp, i, j );
+
+                    }
+                }
+                // 右方
+                for(var j = 11; j <17; j++){
+                    for(var i= 6; i < 11; i++){
+                        var camp = chessBoard[i][j];
+                        camp.setSize(chessH, chessW);
+                        camp.setTextRotate(-Math.PI/2);
+                        drawCamp(camp, i, j );
+                    }
+                }
+            }
+            
+            function renderPick(){
+                // 下方 （玩家主视角)
+                for(var i = 11; i < 17; i++){
+                    for(var j= 6; j < 11; j++){
+                        var camp = chessBoard[i][j];
+                        camp.setSize(chessW, chessH);
+                        drawCamp(camp, i, j);
+                    }
+                }
+                /// 上方
+                for(var i = 5; i >= 0; i--){
+                    for(var j= 6; j < 11; j++){
+                        var camp = chessBoard[i][j];
+                        camp.setSize(chessW, chessH);
+                        camp.setTextRotate(-Math.PI);
+                        drawCamp(camp, i, j );
+                    }
+                }
+                //  左方
+                for(var j = 5; j >=0; j--){
+                    for(var i= 6; i < 11; i++){
+                        var camp = chessBoard[i][j];
+                        camp.setSize(chessH, chessW);
+                        camp.setTextRotate(Math.PI/2);
+                        drawCamp(camp, i, j );
+
+                    }
+                }
+                // 右方
+                for(var j = 11; j <17; j++){
+                    for(var i= 6; i < 11; i++){
+                        var camp = chessBoard[i][j];
+                        camp.setSize(chessH, chessW);
+                        camp.setTextRotate(-Math.PI/2);
+                        drawCamp(camp, i, j );
+                    }
+                }
+            }
+        }
+
+
+        var HiChat = function(){
+            this.socket = null;
+        }
+
+        HiChat.prototype = {
+            init: function(){
+                var that = this;
+                this.socket = io.connect();
+                this.socket.on('connect', function(){
+                    document.getElementById('nickWrapper').style.display = 'block';
+                    document.getElementById('nickNameInput').focus();
+                    
+                })
+                document.getElementById('sendBtn').addEventListener('click', function(){
+                    var messageInput = document.getElementById('messageInput'), 
+                        msg = messageInput.value;
+                        messageInput.value = '';
+                        messageInput.focus();
+                        if(msg.trim().length != 0){
+                            that.socket.emit('postMsg', msg); //把消息发送到服务器
+                            that._displayNewMsg('me', msg); //把自己的消息显示到自己的窗口中 
+                        }
+                }, false);
+                document.getElementById('loginBtn').addEventListener('click', function() {
+                    var nickName = document.getElementById('nickNameInput').value;
+                    //检查昵称输入框是否为空
+                    if (nickName.trim().length != 0) {
+                        //不为空，则发起一个login事件并将输入的昵称发送到服务器
+                        that.socket.emit('login', nickName);
+                    } else {
+                        //否则输入框获得焦点
+                        document.getElementById('nickNameInput').focus();
+                    };
+                }, false);
+
+                this.socket.on('nickExisted', function(){
+                    document.getElementById('info').textContent = '用户已存在';
+                })
+                this.socket.on('loginSuccess', function(){
+                    document.getElementById('nickWrapper').style.display = 'none';
+                    document.getElementById('messageInput').focus();
+                });
+                this.socket.on('system', function(nickName, userCount, type){
+                    var msg = nickName + (type == 'login' ? ' 加入' : ' 离开');
+                    that._displayNewMsg('system', msg, 'red');
+                    document.getElementById('status').textContent = userCount+'个用户在线';
+                });
+                this.socket.on('newMsg', function(nickName, msg){
+                    that._displayNewMsg(nickName, msg);
+                });
+                this.socket.on('EmpIdNotFound', function(){
+                    document.getElementById('info').textContent = '员工编号不存在';
+                });
+
+                // 游戏模块
+                //pick 
+                document.
+            },
+            _displayNewMsg: function(user, msg, color){
+                var container = document.getElementById('historyMsg'),
+                    msgToDisplay = document.createElement('p'),
+                    date = new Date().toTimeString().substr(0, 8);
+                msgToDisplay.style.color = color || '#000';
+                msgToDisplay.innerHTML = user + '<span class="timespan">('+date+'):</span>'+msg;
+                container.appendChild(msgToDisplay);
+                container.scrollTop = container.scrollHeight; 
+            },
+
+        }
+        
+    </script>
+</html>
