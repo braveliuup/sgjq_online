@@ -1,4 +1,4 @@
- var config = {
+var config = {
     state: {
         pick: '选人状态', 
         preparing: '准备中',
@@ -7,8 +7,17 @@
         over: '已结束'
     },
     kcharf_emp_db:{
-        'kdr20151005': '刘勇'
-    }    
+        'kdr20151005': '刘勇',
+        'kdr20151006': '金文哲',
+        'kdr20161020': '金星',
+        'kdr20161027': '王世杰',
+    },
+    color: {
+        red: '#ff6666',
+        yellow: '#ffcc00',
+        blue: '#99ccff',
+        green: '#66cc00'
+    }
 }
 
 module.exports = config;

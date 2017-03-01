@@ -1,6 +1,7 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var config = require('./config');
+var kdebug = require('./KDebug');
 var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
@@ -45,9 +46,18 @@ router.get('/chat', function(req, res){
 
 app.use(router);
 
+var Player = function(){
+    this.name = '';
+    this.type = '';
+    this.state = '';
+    this.isOnline = false;
+}
+
+
 var online_PeopleCount = 0; 
 var socketManager = {};
 var users = [];
+var players = {};
 io.on('connection', function(socket){
     socket.on('login', function(nickName){
         var empName = searchEmp(nickName);
@@ -56,21 +66,39 @@ io.on('connection', function(socket){
         }else if(users.indexOf(nickName) > -1){
             socket.emit('nickExisted');
         }else{
+            kdebug.info('login...'+empName);
             socket.userIndex = users.length;
             socket.nickName = nickName;
             socket.empName = empName;
             users.push(nickName);
+            var player = new Player();
+            player.name=  empName;
+            player.isOnline = true;
+            players[empName] = player;
             socket.emit('loginSuccess');
             io.sockets.emit('system', empName, users.length, 'login');// 向所有连接到服务器的客户端发送当前登录用户的昵称
         }
     });
     socket.on('disconnect', function(){
+        if(socket.empName == null)return;
+        kdebug.info('disconnect...'+socket.empName);
         users.splice(socket.userIndex, 1);
+        if(players.hasOwnProperty(socket.empName)){
+            players[socket.empName].isOnline = false;
+        }
         socket.broadcast.emit('system', socket.empName, users.length, 'logout');
     });
     
     socket.on('postMsg', function(msg){
         socket.broadcast.emit('newMsg', socket.empName, msg); // 将消息发送到除自己外的所有用户
+    });
+
+    // 游戏模块
+    socket.on('event_pick', function(name, type, state){
+        kdebug.info('event_pick...'+name+','+type+','+state);
+        players[name].type = type;
+        players[name].state = state;
+        socket.broadcast.emit('event_pick', name, type, state);
     })
 })
 
