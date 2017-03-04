@@ -152,6 +152,7 @@
         }();
         
 var canvas = document.getElementById('canvas');
+var moveEffectCanvas;
 var ctx = canvas.getContext('2d');
 var firstCamp = null;
 var secondCamp = null;
@@ -680,6 +681,9 @@ Game.prototype = {
             }
         }
         return null;
+    },
+    showMoveRoute: function(firstCamp, camp){
+        var c = moveEffectCanvas.getContext('2d')
     }
 }
 
@@ -882,6 +886,15 @@ var Observer = function(){
 window.onload = function(){
     canvas.setAttribute('width', window.innerWidth );       
     canvas.setAttribute('height', window.innerHeight );       
+      
+    moveEffectCanvas = document.createElement('canvas');
+    moveEffectCanvas.style.position = 'absolute';
+    moveEffectCanvas.style.left = 0;
+    moveEffectCanvas.style.top = 0;
+    moveEffectCanvas.setAttribute('width', window.innerWidth)
+    moveEffectCanvas.setAttribute('height', window.innerHeight );       
+    document.body.appendChild(moveEffectCanvas);
+
     canvas.addEventListener('mousedown', function(e){
         game.state = config.state.started;
         if(game.state == config.state.started){ //游戏开始 开始按顺序走步了
@@ -930,26 +943,12 @@ window.onload = function(){
                     firstCamp.filledChess = null;
                     firstCamp.draw();
                     firstCamp = null;
-                    // game.showMoveRoute(firstCamp, camp);
+                    game.showMoveRoute(firstCamp, camp);
                 }
                 if(camp.filledChess && camp.filledChess.type != hichat.player.type && camp.filledChess.type != hichat.player.teamPlayer.type){
                     console.log('战斗，准备进攻',camp.filledChess.type);
                     var result = GameRule.judgment(firstCamp.filledChess, camp.filledChess);// 双方棋子判定,判定进攻棋子是否能打过对方棋子
-                    // game.showMoveRoute(firstCamp, camp);
-                    var moveEffectCanvas = document.createElement('canvas');
-                    moveEffectCanvas.style.position = 'absolute';
-                    moveEffectCanvas.style.left = 0;
-                    moveEffectCanvas.style.top = 0;
-                    moveEffectCanvas.style.width = window.innerWidth;
-                    moveEffectCanvas.style.height = window.innerHeight;
-                    document.body.appendChild(moveEffectCanvas);
-                    var c = moveEffectCanvas.getContext('2d');
-                    c.strokeStyle = '#ff0000';
-                    c.strokeRect(0,0, 100, 100);
-                    // c.strokeRect(camp.originX - 100, camp.originY - 100, 100, 100);
-                    
-                    // firstCamp.originX 
-                    // firstCamp.originY
+                    game.showMoveRoute(firstCamp, camp);
                     switch(result)
                     {
                         case config.judgment.win:
