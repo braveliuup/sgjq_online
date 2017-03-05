@@ -125,7 +125,11 @@ io.on('connection', function(socket){
                 }
             }
         }        
-    })
+    });
+    socket.on('event_occupy', function(row1, col1, name, type, row2, col2){
+        kdebug.info('event_occupy...');
+        socket.broadcast.emit('event_occupy', row1, col1, name, type, row2, col2);        
+    });
 
 })
 

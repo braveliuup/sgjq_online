@@ -6,6 +6,7 @@
                 width: 100%;
                 margin: 0;
                 padding:0;
+                scroll:no;
             }
             #canvas {
             display: block;
@@ -152,7 +153,7 @@
         }();
         
 var canvas = document.getElementById('canvas');
-var moveEffectCanvas;
+
 var ctx = canvas.getContext('2d');
 var firstCamp = null;
 var secondCamp = null;
@@ -547,6 +548,13 @@ HiChat.prototype = {
             that._displayNewMsg('game', '所有玩家已选择席位，游戏准备中');
             document.getElementById('gameState').innerHTML = config.state.preparing;
         });
+        this.socket.on('event_occupy', function(row1, col1, name, type, row2, col2){
+            var firstCamp = chessBoard[row1][col1];
+            var camp = chessBoard[row2][col2];
+            camp.drawChess(firstCamp.filledChess);
+            firstCamp.filledChess = null;
+            firstCamp.draw();
+        });
 
         //pick 
         document.getElementById('pickDiv').addEventListener('click', function(e){
@@ -619,6 +627,9 @@ HiChat.prototype = {
     initPlayer : function(){
         this.player = new Player();
     },
+    broadcastOccupy: function(firstCamp, camp){//广播占营事件
+        this.socket.emit('event_occupy', firstCamp.rowIdx, firstCamp.colIdx, firstCamp.filledChess.name, firstCamp.filledChess.type, camp.rowIdx, camp.colIdx);
+    }
 }
 
 var Game = function(){
@@ -683,7 +694,35 @@ Game.prototype = {
         return null;
     },
     showMoveRoute: function(firstCamp, camp){
+        var  moveEffectCanvas = document.createElement('canvas');
+        moveEffectCanvas.style.position = 'absolute';
+        moveEffectCanvas.style.left = 0;
+        moveEffectCanvas.style.top = 0;
+        moveEffectCanvas.setAttribute('width', window.innerWidth)
+        moveEffectCanvas.setAttribute('height', window.innerHeight );       
+        document.body.appendChild(moveEffectCanvas);
         var c = moveEffectCanvas.getContext('2d')
+        c.lineWidth = 3;
+        c.strokeStyle = 'red';
+        var isShow = true;
+        var showCount = 0;
+        var blinkblink = function(){
+            if(isShow){
+                c.strokeRect(firstCamp.originX-25, firstCamp.originY-25, 50, 50);
+                c.strokeRect(camp.originX-25, camp.originY-25, 50, 50);
+                isShow = false;
+                showCount++;
+                if(showCount == 4){
+                    document.body.removeChild(moveEffectCanvas);
+                    return;
+                }
+            }else{
+                c.clearRect(0,0, window.innerWidth, window.innerHeight);
+                isShow = true;
+            }
+            setTimeout(blinkblink, 500);
+        }
+        blinkblink();
     }
 }
 
@@ -692,9 +731,17 @@ var Vertex2d = function(x, y){
     this.y = y;
 }
 
+var boundsWidth = 600;
+var boundsHeight = 600;
+var boundsCenterX =window.innerWidth / 2; 
+var ltx = boundsCenterX - boundsWidth / 2 ;
+var rbx = ltx + boundsWidth;
+var boundsCenterY =window.innerHeight / 2; 
+var lty = boundsCenterY - boundsHeight / 2 ;
+var rby = lty + boundsHeight;
 var bounds = {
-    lt: new Vertex2d(400,20),
-    rb: new Vertex2d(1320, 940),
+    lt: new Vertex2d(ltx,lty),
+    rb: new Vertex2d(rbx, rby),
     vgap : function(){
         return (this.rb.y - this.lt.y) / (maxCols-1);
     },
@@ -887,13 +934,7 @@ window.onload = function(){
     canvas.setAttribute('width', window.innerWidth );       
     canvas.setAttribute('height', window.innerHeight );       
       
-    moveEffectCanvas = document.createElement('canvas');
-    moveEffectCanvas.style.position = 'absolute';
-    moveEffectCanvas.style.left = 0;
-    moveEffectCanvas.style.top = 0;
-    moveEffectCanvas.setAttribute('width', window.innerWidth)
-    moveEffectCanvas.setAttribute('height', window.innerHeight );       
-    document.body.appendChild(moveEffectCanvas);
+    
 
     canvas.addEventListener('mousedown', function(e){
         game.state = config.state.started;
@@ -939,11 +980,13 @@ window.onload = function(){
                 }
                 if(!camp.filledChess){
                     console.log('选择了',camp.type,'，准备进营');
+                    // game.showMoveRoute(firstCamp, camp);
+                    hichat.broadcastOccupy(firstCamp, camp);
                     camp.drawChess(firstCamp.filledChess);
                     firstCamp.filledChess = null;
                     firstCamp.draw();
                     firstCamp = null;
-                    game.showMoveRoute(firstCamp, camp);
+
                 }
                 if(camp.filledChess && camp.filledChess.type != hichat.player.type && camp.filledChess.type != hichat.player.teamPlayer.type){
                     console.log('战斗，准备进攻',camp.filledChess.type);
@@ -1082,6 +1125,14 @@ window.onload = function(){
     hichat.init();  
     game = new Game();
     game.init();
+
+    var deg = 0 ;
+        function rotate (){
+            deg += 90;
+            canvas.style.transform = 'rotate('+deg+'deg)'
+            setTimeout(rotate,1000);
+        }
+        rotate()
 }
         
     </script>
