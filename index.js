@@ -5,8 +5,8 @@ var kdebug = require('./KDebug');
 var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
-server.listen(666, function(){
-    console.log('server started on port 666');
+server.listen(8686, function(){
+    console.log('server started on port 8686');
 });
 // 使用router中间件
 var router = express.Router();
@@ -58,6 +58,7 @@ var online_PeopleCount = 0;
 var socketManager = {};
 var users = [];
 var players = {};
+var stepOrder = ['red', 'yellow', 'green', 'blue'];
 io.on('connection', function(socket){
     socket.on('login', function(nickName){
         var empName = searchEmp(nickName);
@@ -82,7 +83,7 @@ io.on('connection', function(socket){
     socket.on('disconnect', function(){
         if(socket.empName == null)return;
         kdebug.info('disconnect...'+socket.empName);
-        users.splice(socket.userIndex, 1);
+        users.splice(users.indexOf(socket.nickName), 1);
         if(players.hasOwnProperty(socket.empName)){
             players[socket.empName].isOnline = false;
         }
@@ -96,6 +97,13 @@ io.on('connection', function(socket){
     // 游戏模块
     socket.on('event_pick', function(name, type, state){
         kdebug.info('event_pick...'+name+','+type+','+state);
+        for(var key in players){
+            if(players[key].type == type){
+                kdebug.info(type+'已经被'+players[key].name+'选择');
+                socket.emit('seatSelected', players[key].name, type);
+                return;
+            }
+        }
         players[name].type = type;
         players[name].state = state;
         socket.broadcast.emit('event_pick', name, type, state);
@@ -110,6 +118,7 @@ io.on('connection', function(socket){
                 }
             }
         }   
+        socket.emit('event_pick_success');
     });
     socket.on('event_prepare', function(name, state){
         kdebug.info('event_preprare...'+name+","+state);
@@ -121,18 +130,38 @@ io.on('connection', function(socket){
                 prepareCount++;
                 if(prepareCount == 4){
                     io.sockets.emit('game_start');
+                    // 随机选一个先走
+                    socket.broadcast.emit('event_turnorder', stepOrder(Math.round(Math.random()*3)));
                     kdebug.info('all prepared, 游戏开始...');
                 }
             }
         }        
     });
     socket.on('event_occupy', function(row1, col1, name, type, row2, col2){
-        kdebug.info('event_occupy...');
+        kdebug.info(type+':event_occupy...');
+        var nextType =turnToNext(type);
+        io.sockets.emit('event_turnorder', nextType);
+        kdebug.info('it is turn to '+ nextType);
         socket.broadcast.emit('event_occupy', row1, col1, name, type, row2, col2);        
+    });
+    socket.on('event_attack', function(row1, col1, name, type, row2, col2){
+        kdebug.info(type+':event_attack...');
+        var nextType =turnToNext(type);
+        io.sockets.emit('event_turnorder', nextType);
+        kdebug.info('it is turn to '+ nextType);
+        socket.broadcast.emit('event_attack', row1, col1, name, type, row2, col2);        
     });
 
 })
 
+function turnToNext(type){
+    var idx = stepOrder.indexOf(type);
+    idx++;
+    if(idx == 4){
+        idx = 0;
+    }
+    return stepOrder[idx];
+}
 function forEach(ary, callback){
     
 }
