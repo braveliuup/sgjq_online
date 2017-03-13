@@ -24,14 +24,6 @@ router.get('/start', function(req, res){
     res.render('index', {title: 'hello ejs'});
 });
 
-router.post('/player', function(req, res){
-    if(config.kcharf_emp_db.hasOwnProperty(req.body.id.toLowerCase())){
-        var name = game.kcharf_emp_db[req.body.id.toLowerCase()];
-        console.log(name);
-        res.send(name);
-    }
-});
-
 router.get('/game', function(req, res){
     res.sendFile(__dirname + '/views/game.html');
 })
@@ -59,6 +51,7 @@ var socketManager = {};
 var users = [];
 var players = {};
 var stepOrder = ['red', 'yellow', 'green', 'blue'];
+var game = {};
 io.on('connection', function(socket){
     socket.on('login', function(nickName){
         var empName = searchEmp(nickName);
@@ -131,7 +124,8 @@ io.on('connection', function(socket){
                 if(prepareCount == 4){
                     io.sockets.emit('game_start');
                     // 随机选一个先走
-                    socket.broadcast.emit('event_turnorder', stepOrder(Math.round(Math.random()*3)));
+                    var idx = Math.round(Math.random()*3);
+                    io.sockets.emit('event_turnorder', stepOrder[idx]);
                     kdebug.info('all prepared, 游戏开始...');
                 }
             }
@@ -144,24 +138,51 @@ io.on('connection', function(socket){
         kdebug.info('it is turn to '+ nextType);
         socket.broadcast.emit('event_occupy', row1, col1, name, type, row2, col2);        
     });
-    socket.on('event_attack', function(row1, col1, name, type, row2, col2){
+    socket.on('event_attack', function(row1, col1, name, type, row2, col2, overtype){
         kdebug.info(type+':event_attack...');
+        console.log(overtype)
+        console.log(stepOrder)
+        if(overtype){
+            stepOrder.splice(stepOrder.indexOf(overtype), 1);
+        }
+        console.log(stepOrder)
+        
         var nextType =turnToNext(type);
         io.sockets.emit('event_turnorder', nextType);
         kdebug.info('it is turn to '+ nextType);
         socket.broadcast.emit('event_attack', row1, col1, name, type, row2, col2);        
     });
+    socket.on('event_player_over', function(type){
+        kdebug.info(type+': over.....');
+        var player = findPlayerByType(type);
+        player.state = config.state.over;
+        io.sockets.emit('event_player_over', type);
+        if(stepOrder.indexOf('red') == -1 && stepOrder.indexOf('green') == -1){
+            kdebug.info('game over! red + green fail');
+            io.sockets.emit('event_game_over');
+        }
+        if(stepOrder.indexOf('blue') == -1 && stepOrder.indexOf('yellow') == -1){
+            kdebug.info('game over! yellow + blue fail');
+            io.sockets.emit('event_game_over');
+        }
+        
+    });
+    socket.on('event_exchangeChess_prepare', function(row1, col1, row2, col2){
+        kdebug.info('exchange chess on prepare');
+        socket.broadcast.emit('event_exchangeChess_prepare', row1, col1, row2, col2);
+    })
 
 })
 
 function turnToNext(type){
     var idx = stepOrder.indexOf(type);
     idx++;
-    if(idx == 4){
+    if(idx == stepOrder.length){
         idx = 0;
     }
     return stepOrder[idx];
 }
+
 function forEach(ary, callback){
     
 }
@@ -171,6 +192,14 @@ function searchEmp(empId){
      if(config.kcharf_emp_db.hasOwnProperty(empId.toLowerCase())){
         var name = config.kcharf_emp_db[empId.toLowerCase()];
         return name;
+    }
+    return false;
+}
+function findPlayerByType(type){
+    for(var key in players){
+        if(players[key].type == type && players[key].state != config.state.over){
+            return players[key];
+        }
     }
     return false;
 }
