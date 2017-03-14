@@ -1122,7 +1122,7 @@ window.onload = function(){
     canvas.setAttribute('height', window.innerHeight );       
       
     canvas.addEventListener('mousedown', function(e){
-        // game.state = config.state.started;
+        game.state = config.state.started; game.isOnOrder = true;
         if(game.state == config.state.started){ //游戏开始 开始按顺序走步了
             if(!game.isOnOrder) return;
             var camp = game.pickCamp(e);
@@ -1152,6 +1152,56 @@ window.onload = function(){
                     camp.setClicked();
                     firstCamp = null;
                     return;
+                }
+                function checkStepValidity(){
+                    // 不在铁道上 ，只能往上下左右走一步
+                    var onRailFlag = true;
+                    if(firstCamp.colIdx ==0 || firstCamp.rowIdx ==0 || firstCamp.colIdx ==16|| firstCamp.rowIdx == 16){
+                        console.log('不在铁道上')
+                        onRailFlag = false;
+                    }
+                    var railRoadBound = [
+                        {lt: new Vertex2d(1,6), rb: new Vertex2d(5, 10)},
+                        {lt: new Vertex2d(6,1), rb: new Vertex2d(10, 5)},
+                        {lt: new Vertex2d(11,6), rb: new Vertex2d(15, 10)},
+                        {lt: new Vertex2d(6,11), rb: new Vertex2d( 10, 15)},
+                    ];
+                    railRoadBound.forEach(function(item, key){
+                        if(firstCamp.colIdx > item.lt.x && firstCamp.colIdx < item.rb.x && firstCamp.rowIdx > item.lt.y && firstCamp.rowIdx < item.rb.y){
+                            console.log('不在铁道上');
+                            onRailFlag = false;
+                        }
+                    });
+                    if(!onRailFlag){
+                        if(Math.abs(camp.rowIdx - firstCamp.rowIdx) > 1 || Math.abs(camp.colIdx - firstCamp.colIdx) > 1){
+                            alert('行进不合法啊！ 大哥');
+                            firstCamp.setClicked();
+                            firstCamp = null;
+                            return false;
+                        }
+                    }
+                    if(onRailFlag){
+                        console.log('在铁道上')
+                    }
+                    if(firstCamp.colIdx == 0){
+                        var flag = true;
+                        if(camp.colIdx > 1){
+                            flag = false;
+                        }
+                        if(Math.abs(camp.rowIdx - firstCamp.rowIdx)>1){
+                            flag = false;
+                        }
+                        if(!flag){
+                            alert('行进不合法啊！大哥');
+                            firstCamp.setClicked();
+                            firstCamp = null;
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                if(!checkStepValidity()){//检查步骤合法性 
+                    return ;
                 }
                 if(camp.filledChess && camp.filledChess.type == firstCamp.filledChess.type){
                     // console.log('重新选择了');
@@ -1259,25 +1309,66 @@ window.onload = function(){
         }
     });
 
-    for(var i= 0 ; i < maxRows; i++){
-        chessBoard[i] = [];
-        var ctx = canvas.getContext('2d');
-        ctx.beginPath();
-        ctx.moveTo(bounds.lt.x, i*bounds.vgap()+bounds.lt.y);
-        ctx.lineTo(bounds.lt.x + bounds.hgap()*(maxRows-1), i*bounds.vgap() +bounds.lt.y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(i*bounds.hgap()+bounds.lt.x, bounds.lt.y);
-        ctx.lineTo(i*bounds.hgap() + bounds.lt.x, bounds.lt.y +bounds.vgap()*(maxCols -1) );
-        ctx.stroke();
-        for(var j = 0 ; j < maxCols ; j++){
-            var originX = bounds.lt.x + j*bounds.hgap() ;
-            var originY =  bounds.lt.y + i*bounds.vgap();
-            var camp = new Camp(originX, originY, i, j);
-            chessBoard[i][j] = camp;
+    function drawBaseGrid(){
+        for(var i= 0 ; i < maxRows; i++){
+            chessBoard[i] = [];
+            var ctx = canvas.getContext('2d');
+            ctx.beginPath();
+            ctx.moveTo(bounds.lt.x, i*bounds.vgap()+bounds.lt.y);
+            ctx.lineTo(bounds.lt.x + bounds.hgap()*(maxRows-1), i*bounds.vgap() +bounds.lt.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(i*bounds.hgap()+bounds.lt.x, bounds.lt.y);
+            ctx.lineTo(i*bounds.hgap() + bounds.lt.x, bounds.lt.y +bounds.vgap()*(maxCols -1) );
+            ctx.stroke();
+            for(var j = 0 ; j < maxCols ; j++){
+                var originX = bounds.lt.x + j*bounds.hgap() ;
+                var originY =  bounds.lt.y + i*bounds.vgap();
+                var camp = new Camp(originX, originY, i, j);
+                chessBoard[i][j] = camp;
+            }
         }
     }
-
+    function drawXieXian(){
+        for(var i =0 ; i < moveCampIdxAry.length; i++){
+            var idxAry = moveCampIdxAry[i].split(',').map(function(item){
+                return Number(item);
+            });
+            var originCamp = chessBoard[idxAry[0]][idxAry[1]];
+            var ctx = canvas.getContext('2d');
+            var x = idxAry[0] - 1;
+            var y = idxAry[1] -1;
+            ctx.beginPath();
+            var camp = chessBoard[x][y];
+            ctx.moveTo(camp.originX, camp.originY);
+            ctx.lineTo(originCamp.originX, originCamp.originY);
+            ctx.stroke();
+            //////
+            x = idxAry[0] + 1;
+            y = idxAry[1] - 1 ;
+            ctx.beginPath();
+            camp = chessBoard[x][y];
+            ctx.moveTo(camp.originX, camp.originY);
+            ctx.lineTo(originCamp.originX, originCamp.originY);
+            ctx.stroke();
+            ///////
+            x = idxAry[0] + 1;
+            y = idxAry[1] + 1 ;
+            ctx.beginPath();
+            camp = chessBoard[x][y];
+            ctx.moveTo(camp.originX, camp.originY);
+            ctx.lineTo(originCamp.originX, originCamp.originY);
+            ctx.stroke();
+            ///////
+            x = idxAry[0] -1 ;
+            y = idxAry[1] + 1 ;
+            ctx.beginPath();
+            camp = chessBoard[x][y];
+            ctx.moveTo(camp.originX, camp.originY);
+            ctx.lineTo(originCamp.originX, originCamp.originY);
+            ctx.stroke();
+        }
+    }
     function drawRailRoad(){
         ctx.save();
         ctx.lineWidth = 6;
@@ -1307,6 +1398,9 @@ window.onload = function(){
         }
         ctx.restore();
     }
+
+    drawBaseGrid();
+    drawXieXian();
     drawRailRoad();
 
     hichat = new HiChat();
