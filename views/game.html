@@ -128,6 +128,8 @@
                 <br/>
                 <input value='选择绿方' style="margin-left:105px;background:green" type="button" id="greenBtn" data='green'/>
                 <br/>
+                <input value='安静的做个观众' style="width:200px;margin-left:50px;margin-top:5px;background:pink" type="button" data="observer"/>
+                
              <!--   <input value='我只想做个安静的美男(女)子' style="background:pink;width:320px;margin-top:10px" type="button" id="observerBtn"/>-->
             </div>
             <!--<span id="prepareTip">未准备</span>-->
@@ -143,6 +145,7 @@
         </div>
     </body>
     <script src="js/socket.io-1.4.5.js"></script>
+    <script src="js/algo.js"></script>
     <script>
         !function(){
             // kcharf array 扩展
@@ -170,6 +173,16 @@ var chessW = 40;
 var chessH = 20;
 var hichat;
 var game;
+var Vertex2d = function(x, y){
+    this.x = x;
+    this.y = y;
+}
+var railRoadBound = [
+    {lt: new Vertex2d(1,6), rb: new Vertex2d(5, 10)},
+    {lt: new Vertex2d(6,1), rb: new Vertex2d(10, 5)},
+    {lt: new Vertex2d(11,6), rb: new Vertex2d(15, 10)},
+    {lt: new Vertex2d(6,11), rb: new Vertex2d( 10, 15)},
+];
 var moveCampIdxAry = [
         '12,7','12,9','13,8','14,7','14,9', 
         '4,7','4,9','3,8','2,7','2,9',
@@ -187,6 +200,7 @@ var middleCampIdxAry = [
     [8,6],[8,8],[8,10],
     [10,6],[10,8],[10,10],
 ];
+
 var RailRoad = function(x,y, x1, y1){
     this.x = x;
     this.y = y;
@@ -266,6 +280,7 @@ var drawCamp =  function(camp, i, j, player, _showChessName = false){
         camp.type= '行营';
         camp.draw();
     }else{
+        camp.type = '兵站';
         camp.draw();
         if(player){
             var chess = player.getChess();
@@ -362,44 +377,61 @@ Player.prototype = {
     },
     renderPrepare: function(){
         this.initChess();
-      
-        // 下方 （玩家主视角)
+        // 暂不区分 主视角
+        // 下方 （玩家主视角)  green
         for(var i = 11; i < 17; i++){
             for(var j= 6; j < 11; j++){
                 var camp = chessBoard[i][j];
                 camp.setSize(chessW, chessH);
                 // drawCamp(camp, i, j , hichat.player , true);
-                drawCamp(camp, i, j , hichat.greenPlayer , true);
+                
+                if(hichat.player.type == 'green' || hichat.player.type == 'observer'){
+                    drawCamp(camp, i, j , hichat.greenPlayer , true);
+                }else{
+                    drawCamp(camp, i, j , hichat.greenPlayer , false);
+                }
             }
         }
-        /// 上方
+        /// 上方  red
         for(var i = 5; i >= 0; i--){
             for(var j= 6; j < 11; j++){
                 var camp = chessBoard[i][j];
                 camp.setSize(chessW, chessH);
                 camp.setTextRotate(-Math.PI);
                 // drawCamp(camp, i, j ,hichat.player.teamPlayer);
-                drawCamp(camp, i, j ,hichat.redPlayer , true);
+                if(hichat.player.type == 'red' || hichat.player.type == 'observer'){
+                    drawCamp(camp, i, j ,hichat.redPlayer , true);
+                }else{
+                    drawCamp(camp, i, j ,hichat.redPlayer , false);
+                }
             }
         }
-        //  左方
+        //  左方 yellow
         for(var j = 5; j >=0; j--){
             for(var i= 6; i < 11; i++){
                 var camp = chessBoard[i][j];
                 camp.setSize(chessH, chessW);
                 camp.setTextRotate(Math.PI/2);
                 // drawCamp(camp, i, j ,hichat.player.lastPlayer);
-                drawCamp(camp, i, j ,hichat.yellowPlayer, true);
+                if(hichat.player.type == 'yellow' || hichat.player.type == 'observer'){
+                    drawCamp(camp, i, j ,hichat.yellowPlayer, true);
+                }else{
+                    drawCamp(camp, i, j ,hichat.yellowPlayer, false);
+                }
             }
         }
-        // 右方
+        // 右方 blue
         for(var j = 11; j <17; j++){
             for(var i= 6; i < 11; i++){
                 var camp = chessBoard[i][j];
                 camp.setSize(chessH, chessW);
                 camp.setTextRotate(-Math.PI/2);
                 // drawCamp(camp, i, j ,hichat.player.nextPlayer);
-                drawCamp(camp, i, j ,hichat.bluePlayer, true);
+                if(hichat.player.type == 'blue' || hichat.player.type == 'observer'){
+                    drawCamp(camp, i, j ,hichat.bluePlayer, true);
+                }else{
+                    drawCamp(camp, i, j ,hichat.bluePlayer, false);
+                }
             }
         }
     },
@@ -680,6 +712,12 @@ HiChat.prototype = {
                             that.yellowPlayer = new Player('yellow');
                             that.redPlayer = new Player('red');
                             break;
+                            case 'observer':
+                            that.bluePlayer = new Player('blue');
+                            that.greenPlayer = new Player('green');
+                            that.yellowPlayer = new Player('yellow');
+                            that.redPlayer = new Player('red');
+                            break;
                         }
                         that.player.renderPrepare();
                         that.playerDic[that.player.name] = that.player;
@@ -913,10 +951,7 @@ Game.prototype = {
        
 }
 
-var Vertex2d = function(x, y){
-    this.x = x;
-    this.y = y;
-}
+
 
 var boundsWidth = 850;
 var boundsHeight = 850;
@@ -999,7 +1034,7 @@ var GameRule = {
 }
 
 var Camp = function(x, y, rowIdx, colIdx){
-    this.type = '兵站';
+    this.type = '';
     this.originX = x;
     this.originY = y;
     this.fillColor = '#fff';
@@ -1122,7 +1157,7 @@ window.onload = function(){
     canvas.setAttribute('height', window.innerHeight );       
       
     canvas.addEventListener('mousedown', function(e){
-        game.state = config.state.started; game.isOnOrder = true;
+        // game.state = config.state.started; game.isOnOrder = true;
         if(game.state == config.state.started){ //游戏开始 开始按顺序走步了
             if(!game.isOnOrder) return;
             var camp = game.pickCamp(e);
@@ -1153,25 +1188,16 @@ window.onload = function(){
                     firstCamp = null;
                     return;
                 }
+                if(camp.filledChess && camp.filledChess.type == firstCamp.filledChess.type){
+                    firstCamp.setClicked();
+                    camp.setClicked();
+                    firstCamp = camp;
+                    return ;
+                }
                 function checkStepValidity(){
                     // 不在铁道上 ，只能往上下左右走一步
                     var onRailFlag = true;
-                    if(firstCamp.colIdx ==0 || firstCamp.rowIdx ==0 || firstCamp.colIdx ==16|| firstCamp.rowIdx == 16){
-                        console.log('不在铁道上')
-                        onRailFlag = false;
-                    }
-                    var railRoadBound = [
-                        {lt: new Vertex2d(1,6), rb: new Vertex2d(5, 10)},
-                        {lt: new Vertex2d(6,1), rb: new Vertex2d(10, 5)},
-                        {lt: new Vertex2d(11,6), rb: new Vertex2d(15, 10)},
-                        {lt: new Vertex2d(6,11), rb: new Vertex2d( 10, 15)},
-                    ];
-                    railRoadBound.forEach(function(item, key){
-                        if(firstCamp.colIdx > item.lt.x && firstCamp.colIdx < item.rb.x && firstCamp.rowIdx > item.lt.y && firstCamp.rowIdx < item.rb.y){
-                            console.log('不在铁道上');
-                            onRailFlag = false;
-                        }
-                    });
+                    onRailFlag = checkOnRailRoad(firstCamp);
                     if(!onRailFlag){
                         if(Math.abs(camp.rowIdx - firstCamp.rowIdx) > 1 || Math.abs(camp.colIdx - firstCamp.colIdx) > 1){
                             alert('行进不合法啊！ 大哥');
@@ -1181,23 +1207,18 @@ window.onload = function(){
                         }
                     }
                     if(onRailFlag){
-                        console.log('在铁道上')
-                    }
-                    if(firstCamp.colIdx == 0){
-                        var flag = true;
-                        if(camp.colIdx > 1){
-                            flag = false;
-                        }
-                        if(Math.abs(camp.rowIdx - firstCamp.rowIdx)>1){
-                            flag = false;
-                        }
-                        if(!flag){
-                            alert('行进不合法啊！大哥');
+                        console.log('在铁道上');
+                        var availableCamps = [];
+                        beginSearch(firstCamp,availableCamps);
+                        console.log(availableCamps);
+                        if(availableCamps.indexOf(camp) == -1){
+                            alert('行进不合法啊！ 大哥');
                             firstCamp.setClicked();
                             firstCamp = null;
                             return false;
                         }
                     }
+
                     return true;
                 }
                 if(!checkStepValidity()){//检查步骤合法性 
@@ -1396,6 +1417,16 @@ window.onload = function(){
             ctx.lineTo(x1, y1);
             ctx.stroke();
         }
+        [[6,5,5,6],[6,11,5,10],[10,11,11,10],[10,5,11,6]].forEach(function(item, idx){
+            ctx.beginPath();
+            var x = chessBoard[item[0]][item[1]].originX;
+            var y = chessBoard[item[0]][item[1]].originY;
+            var x1 = chessBoard[item[2]][item[3]].originX;
+            var y1 = chessBoard[item[2]][item[3]].originY;
+            ctx.moveTo(x, y);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+        });
         ctx.restore();
     }
 

@@ -203,3 +203,73 @@ function findPlayerByType(type){
     }
     return false;
 }
+
+var pieces =['司令','军长','师长','师长','旅长','旅长','团长','团长','营长','营长','炸弹','炸弹','连长','连长','连长','排长','排长', '排长','工兵','工兵','工兵','地雷','地雷','军旗','地雷'];
+var chessBoard = [];
+function initChessBoard(){
+     for(var i= 0 ; i < 17; i++){
+            chessBoard[i] = [];
+            for(var j = 0 ; j < 17 ; j++){
+                chessBoard[i][j] = {name: ''};
+            }
+    }
+}
+initChessBoard();
+function renderPrepare(){
+        //下方
+        for(var i = 11; i < 17; i++){
+            for(var j= 6; j < 11; j++){
+                var camp = chessBoard[i][j];
+                camp.setSize(chessW, chessH);
+                // drawCamp(camp, i, j , hichat.player , true);
+                
+                if(hichat.player.type == 'green' || hichat.player.type == 'observer'){
+                    drawCamp(camp, i, j , hichat.greenPlayer , true);
+                }else{
+                    drawCamp(camp, i, j , hichat.greenPlayer , false);
+                }
+            }
+        }
+        /// 上方  red
+        for(var i = 5; i >= 0; i--){
+            for(var j= 6; j < 11; j++){
+                var camp = chessBoard[i][j];
+                camp.setSize(chessW, chessH);
+                camp.setTextRotate(-Math.PI);
+                // drawCamp(camp, i, j ,hichat.player.teamPlayer);
+                if(hichat.player.type == 'red' || hichat.player.type == 'observer'){
+                    drawCamp(camp, i, j ,hichat.redPlayer , true);
+                }else{
+                    drawCamp(camp, i, j ,hichat.redPlayer , false);
+                }
+            }
+        }
+        //  左方 yellow
+        for(var j = 5; j >=0; j--){
+            for(var i= 6; i < 11; i++){
+                var camp = chessBoard[i][j];
+                camp.setSize(chessH, chessW);
+                camp.setTextRotate(Math.PI/2);
+                // drawCamp(camp, i, j ,hichat.player.lastPlayer);
+                if(hichat.player.type == 'yellow' || hichat.player.type == 'observer'){
+                    drawCamp(camp, i, j ,hichat.yellowPlayer, true);
+                }else{
+                    drawCamp(camp, i, j ,hichat.yellowPlayer, false);
+                }
+            }
+        }
+        // 右方 blue
+        for(var j = 11; j <17; j++){
+            for(var i= 6; i < 11; i++){
+                var camp = chessBoard[i][j];
+                camp.setSize(chessH, chessW);
+                camp.setTextRotate(-Math.PI/2);
+                // drawCamp(camp, i, j ,hichat.player.nextPlayer);
+                if(hichat.player.type == 'blue' || hichat.player.type == 'observer'){
+                    drawCamp(camp, i, j ,hichat.bluePlayer, true);
+                }else{
+                    drawCamp(camp, i, j ,hichat.bluePlayer, false);
+                }
+            }
+        }
+}
