@@ -41,7 +41,7 @@ app.use(router);
 var Player = function(){
     this.name = '';
     this.type = '';
-    this.state = '';
+    this.state = config.state.pick;
     this.isOnline = false;
 }
 
@@ -71,7 +71,13 @@ io.on('connection', function(socket){
             player.name=  empName;
             player.isOnline = true;
             players[empName] = player;
-            socket.emit('loginSuccess', empName, game.state);
+            var pickedPlayers = [];
+            for(var key in players){
+                if(players[key].state != config.state.pick){
+                    pickedPlayers.push(players[key]);
+                }
+            }
+            socket.emit('loginSuccess', empName, game.state, JSON.stringify(pickedPlayers));
             io.sockets.emit('system', empName, users.length, 'login');// 向所有连接到服务器的客户端发送当前登录用户的昵称
         }
     });
@@ -133,7 +139,9 @@ io.on('connection', function(socket){
                     game.state = config.state.started;
                     // 随机选一个先走
                     var idx = Math.round(Math.random()*3);
-                    io.sockets.emit('event_turnorder', stepOrder[idx]);
+                    var type = stepOrder[idx];
+                    var player = findPlayerByType(type);
+                    io.sockets.emit('event_turnorder', stepOrder[idx], player.name);
                     kdebug.info('all prepared, 游戏开始...');
                 }
             }
@@ -142,7 +150,9 @@ io.on('connection', function(socket){
     socket.on('event_occupy', function(row1, col1, name, type, row2, col2){
         kdebug.info(type+':event_occupy...');
         var nextType =turnToNext(type);
-        io.sockets.emit('event_turnorder', nextType);
+        var player = findPlayerByType(nextType);
+        var nextPlayerName = player?player.name:'';
+        io.sockets.emit('event_turnorder', nextType, nextPlayerName);
         kdebug.info('it is turn to '+ nextType);
         socket.broadcast.emit('event_occupy', row1, col1, name, type, row2, col2);   
         moveChess(row1, col1, row2, col2);
@@ -157,7 +167,9 @@ io.on('connection', function(socket){
         console.log(stepOrder)
         
         var nextType =turnToNext(type);
-        io.sockets.emit('event_turnorder', nextType);
+        var player = findPlayerByType(nextType);
+        var nextPlayerName = player?player.name:'';
+        io.sockets.emit('event_turnorder', nextType, nextPlayerName);
         kdebug.info('it is turn to '+ nextType);
         socket.broadcast.emit('event_attack', row1, col1, name, type, row2, col2);       
         attackChess(row1, col1, row2, col2); 

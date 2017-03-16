@@ -6,11 +6,12 @@
                 width: 100%;
                 margin: 0;
                 padding:0;
+                overflow-y: hidden;
             }
             #canvas {
-            display: block;
-               margin: 0;
-               padding:0;
+                display: block;
+                margin: 0;
+                padding:0;
             }
             #gameWindow{
                 position:absolute;
@@ -20,6 +21,7 @@
                 height: 300px;
                 border: 1px solid black;
                 overflow: auto;
+                overflow-x:hidden;
             }
             #gameWindow div{
                 margin: 2px;
@@ -98,14 +100,38 @@
                background-color: greenyellow;
            }
            #currentPlayer{
-               font-size: 20px;
+               font-size: 28px;
                color:red;
+               background-color: #1c1c1c;
                font-weight: bold;
+               display: block;
+               text-align: center;
            }
+           @-moz-keyframes heart_beat{
+                0%{-moz-transform:scale(1)} 
+                25%{-moz-transform:scale(2.0)} 
+                50%{-moz-transform:scale(0.9)} 
+                75%{-moz-transform:scale(2)} 
+                100%{-moz-transform:scale(1)}
+            } 
+            @-webkit-keyframes heart_beat{
+                0%{-webkit-transform:scale(1)} 
+                25%{-webkit-transform:scale(2.0)} 
+                50%{-webkit-transform:scale(0.9)} 
+                75%{-webkit-transform:scale(2)} 
+                100%{-webkit-transform:scale(1)}
+            }
+            @keyframes heart_beat{
+                0%{-webkit-transform:scale(1)} 
+                25%{-webkit-transform:scale(2.0)} 
+                50%{-webkit-transform:scale(0.9)} 
+                75%{-webkit-transform:scale(2)} 
+                100%{-webkit-transform:scale(1)}
+            }  
         </style>
     </head>
     <body>
-        <canvas id="canvas"></canvas>
+        <canvas id="canvas" ></canvas>
         <div id="nickWrapper" >
             <div id="info">
             </div>
@@ -271,7 +297,7 @@ function initRailRoadDataSource(){
 
 initRailRoadDataSource();
 
-var drawCamp =  function(camp, i, j, player, _showChessName = false){
+var drawCamp =  function(camp, i, j, player, _showChessName){
     if(moveCampIdxAry.in_array(String.prototype.concat(i,',',j))){
         camp.type= '行营';
         camp.draw();
@@ -284,6 +310,8 @@ var drawCamp =  function(camp, i, j, player, _showChessName = false){
             var chess = player.getChess();
             if(_showChessName){
                 chess.isShowName = true;
+            }else{
+                chess.isShowName = false;
             }
             camp.drawChess(chess);
         }
@@ -581,12 +609,13 @@ HiChat.prototype = {
         this.socket.on('nickExisted', function(){
             document.getElementById('info').textContent = '用户已存在';
         })
-        this.socket.on('loginSuccess', function(nickName, gameState){
+        this.socket.on('loginSuccess', function(nickName, gameState, playerState){
             document.getElementById('nickWrapper').style.display = 'none';
             document.getElementById('messageInput').focus();
             that.player.name = nickName;
             document.getElementById('gameState').innerHTML = gameState;
             game.state = gameState;
+            that._initPickedPlayerState(playerState);
             
         });
         this.socket.on('system', function(nickName, userCount, type){
@@ -668,11 +697,11 @@ HiChat.prototype = {
             });
            
         });
-        this.socket.on('event_turnorder', function(nextType){
+        this.socket.on('event_turnorder', function(nextType, nextPlayer){
             if(nextType == that.player.type){
                 game.isOnOrder = true;
             }
-            document.getElementById('currentPlayer').innerHTML = '&nbsp;轮到 ['+game.getType(nextType)+'] 行进...';
+            that._changeCurrentPlayer(nextType, nextPlayer);
         });
         this.socket.on('event_exchangeChess_prepare', function(row1, col1, row2, col2){
             var camp1 = chessBoard[row1][col1];
@@ -757,6 +786,7 @@ HiChat.prototype = {
                         }
                         that.player.renderPrepare();
                         that.playerDic[that.player.name] = that.player;
+                        rotate();
                     });
                 }
             }
@@ -793,13 +823,32 @@ HiChat.prototype = {
         container.appendChild(msgToDisplay);
         container.scrollTop = container.scrollHeight; 
     },
+    _changeCurrentPlayer : function(nextType, nextPlayer){
+        document.getElementById('currentPlayer').innerHTML = '&nbsp;轮到 ['+game.getType(nextType)+'] '+nextPlayer+' 行进...';
+        document.getElementById('currentPlayer').style.color = nextType;
+        document.getElementById('currentPlayer').style.animation = "heart_beat 2s ease-in-out";
+        document.getElementById('currentPlayer').style.webkitAnimation = "heart_beat 2s ease-in-out";
+        document.getElementById('currentPlayer').style.mozAnimation = "heart_beat 2s ease-in-out";
+        document.getElementById('currentPlayer').style.oAnimation = "heart_beat 2s ease-in-out";
+        setTimeout(function(){
+            document.getElementById('currentPlayer').style.cssText = "";
+            document.getElementById('currentPlayer').style.color = nextType;
+        }, 2000)
+    },
+    _initPickedPlayerState: function(pickedPlayerState){ //显示已经选人了的玩家的状态
+        var obj = JSON.parse(pickedPlayerState);
+        obj.forEach(function(item){
+            document.getElementById(item.type+'Btn').setAttribute('disabled', 'true');
+            hichat.refreshPlayerState(item);
+        });
+    },
     refreshPlayerState : function(player){
         var online = player.isOnline ? '在线' : '离线';
         var name = player.name;
         var state = player.state;
-        var color = player.getType();
+        var color = player.type;
 
-        var msg = '['+online+'] '+name+' '+state + ' '+ color;
+        var msg = '['+online+'] '+name+' '+state + ' '+ game.getType(color);
         var span = document.createElement('span');
         span.innerHTML = msg;
         var target = document.getElementById(name);
@@ -954,22 +1003,26 @@ Game.prototype = {
         switch(result)
         {
             case config.judgment.win:
-                firstCamp.filledChesss = null;
+                firstCamp.filledChess = null;
                 firstCamp.draw();
                 console.log('哇哦！',camp.filledChess.type,'方阵亡');
                 game.playerOver(camp.filledChess.type);
                 break;
             case config.judgment.die:
+                this.dieCommander(firstCamp);
+                this.dieCommander(camp);
                 firstCamp.filledChess = null;
                 firstCamp.draw();
                 camp.filledChess = null;
                 camp.draw();
                 break;
             case config.judgment.fail:
+                this.dieCommander(firstCamp);
                 firstCamp.filledChess = null;
                 firstCamp.draw();
                 break;
             case config.judgment.success:
+                this.dieCommander(camp);
                 camp.filledChess = firstCamp.filledChess;
                 camp.drawChess();
                 firstCamp.filledChess = null;
@@ -977,6 +1030,19 @@ Game.prototype = {
                 break;
         }
         return result;
+    },
+    dieCommander:function(dieCamp){ //如果死的是司令，则该方翻旗
+        if(dieCamp.filledChess.name == '司令'){ 
+            var type = dieCamp.filledChess.type;
+            homeCampIdxAry.forEach(function(item){
+                var ary = item.split(",");
+                var camp = chessBoard[ary[0]][ary[1]];
+                if(camp.filledChess && camp.filledChess.name == '军旗'  && camp.filledChess.type == type){
+                    camp.filledChess.isShowName = true;
+                    camp.drawChess();
+                }
+            });
+        }
     },
     getType: function(type){
         if(type == 'red'){
@@ -1031,18 +1097,27 @@ var GameRule = {
         // 炸弹 和 军旗放错了位置 
         var temp = row+','+col;
         if(chess.name == '军旗'  ){
-            if(temp == '16,7' || temp == '16,9'){
+            if(homeCampIdxAry.indexOf(temp) != -1){
                 return false;
             }else{
+                console.log('军旗只能在大本营')
                 return true;
             }
         }
         if(chess.name == '炸弹'){
-            if(row != 11){
-                return false;
-            }else{
+            if(row == 11 || row ==5 || col == 5 || col == 11){
+                console.log('炸弹不能在第一排')
                 return true;
+            }else{
+                return false;
             }
+        }
+        if(chess.name == '地雷'){
+            if(row == 0 || row == 1 || row == 15 || row == 16 || col == 0 || col == 1 || col == 15 || col == 16){
+                return false;
+            }
+            console.log('地雷得在后两排')
+            return true;
         }
         return false;
     } ,
@@ -1230,7 +1305,12 @@ window.onload = function(){
     canvas.setAttribute('height', window.innerHeight );       
       
     canvas.addEventListener('mousedown', function(e){
-        game.state = config.state.started; game.isOnOrder = true;
+        if(game.mock_started){
+            game.state = config.state.started; game.isOnOrder = true; // 模拟开始状态
+        }
+        if(game.mock_preparing){
+            game.state = config.state.preparing; game.isOnOrder = true; // 模拟准备状态
+        }
         if(hichat.player.type == 'observer'){
             if(!game.pickCamp(e))return;
             console.log('你这是一个安静的美男(女)子');
@@ -1288,11 +1368,22 @@ window.onload = function(){
                         console.log('在铁道上');
                         var availableCamps = [];
                         beginSearch(firstCamp,availableCamps);
+                        var availFlag = false;
                         availableCamps.forEach(function(item){
                             console.log('可行进的路线有：',item.rowIdx+","+item.colIdx);
                         });
                         console.log('可行进营地总个数：',availableCamps.length);
-                        if(availableCamps.indexOf(camp) == -1){
+                        if(availableCamps.indexOf(camp) != -1){
+                            availFlag = true;
+                        }
+                        if(!checkOnRailRoad(camp)){
+                            if(Math.abs(firstCamp.rowIdx - camp.rowIdx) <=1 && Math.abs(firstCamp.colIdx - camp.colIdx) <= 1){
+                                availFlag = true;
+                            }else{
+                                availFlag = false;
+                            }
+                        }
+                        if(!availFlag){
                             alert('行进不合法啊！ 大哥');
                             firstCamp.setClicked();
                             firstCamp = null;
@@ -1519,14 +1610,14 @@ window.onload = function(){
     hichat.init();  
     game = new Game();
     game.init();
-
-    var deg = 0 ;
-        function rotate (){
-            deg += 90;
-            canvas.style.transform = 'rotate('+deg+'deg)'
-           // setTimeout(rotate,1000);
-        }
-       // rotate()
+    game.mock_started = true;//模拟开始状态
+    // game.mock_preparing = true;//模拟准备状态
+}
+var deg = 0 ;
+function rotate (){
+    deg += 270;
+    canvas.style.transform = 'rotate('+deg+'deg)'
+    // setTimeout(rotate,1000);
 }
         
     </script>

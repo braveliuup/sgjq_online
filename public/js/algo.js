@@ -46,6 +46,15 @@ function beginSearch(originCamp, availableCamps){
         if(item.type == '行营' && item.filledChess == null){
             ary.push(item);
         }
+        var teamType = getTeamType(firstCamp.filledChess.type);
+        if(item.filledChess ){
+            if(item.filledChess.type == firstCamp.filledChess.type || item.filledChess.type == teamType){
+            }else{
+                ary.push(item);
+            }
+        }else if(item.type == '兵站'){
+            ary.push(item);
+        }
     });
     var campUp, campDown, campLeft, campRight;
     var campUpRowIdx = originCamp.rowIdx;

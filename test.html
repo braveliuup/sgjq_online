@@ -1,25 +1,47 @@
-<html>
-    <body>
-        <canvas id="canvas"></canvas>
-    </body>
-    <script>
-        var canvas = document.getElementById('canvas')
-        var w = window.innerWidth;
-        var h = window.innerHeight;
-        var rectW = 100;
-        var rectH = 40;
-        canvas.setAttribute('width', w);
-        canvas.setAttribute('height', h);
-        var c = canvas.getContext('2d')
-        c.strokeStyle ='red'
-        c.strokeRect (w/2 - rectW/2, h/2 - rectH/2, rectW, rectH)
-        var deg = 0 ;
-        function rotate (){
-            deg += 90;
-            canvas.style.transform = 'rotate('+deg+'deg)'
-            setTimeout(rotate,1000);
-        }
-        rotate()
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"> 
+<html xmlns="http://www.w3.org/1999/xhtml"> 
+<head> 
+<title>CSS3感应鼠标的背景闪烁和图片缩放动态效果</title> 
+<meta http-equiv="content-type" content="text/html;charset=gb2312"> 
+<style type="text/css"> 
 
-    </script>
-</html>
+/*放大镜效果*/ 
+a{display:block;width:50px;height:50px}/*就把它当做放大镜吧*/ 
+/*a:hover{-moz-animation:heart_beat .5s ease-in-out;-webkit-animation:heart_beat .5s ease-in-out;} */
+@-moz-keyframes heart_beat{
+0%{-moz-transform:scale(1)} 
+25%{-moz-transform:scale(1.70)} 
+50%{-moz-transform:scale(0.9)} 
+75%{-moz-transform:scale(1.55)} 
+100%{-moz-transform:scale(1)}} 
+@-webkit-keyframes heart_beat{
+0%{-webkit-transform:scale(1)} 
+25%{-webkit-transform:scale(1.70)} 
+50%{-webkit-transform:scale(0.9)} 
+75%{-webkit-transform:scale(1.55)} 
+100%{-webkit-transform:scale(1)}}
+@keyframes heart_beat{
+0%{-webkit-transform:scale(1)} 
+25%{-webkit-transform:scale(1.70)} 
+50%{-webkit-transform:scale(0.9)} 
+75%{-webkit-transform:scale(1.55)} 
+100%{-webkit-transform:scale(1)}}  
+</style> 
+</head> 
+<body> 
+<div> 
+
+<a id='aa'>asdfsdf</a> 
+<button onclick="cc()">1    alsdkjflasdkjf sdkf</button>
+<script>
+    function cc(){
+        var d = document.getElementById('aa');
+        d.style.animation = "heart_beat .5s ease-in-out";
+        d.style.webkitAnimation = "heart_beat .5s ease-in-out";
+        d.style.mozAnimation = "heart_beat .5s ease-in-out";
+        d.style.oAnimation = "heart_beat .5s ease-in-out";
+    }
+</script>
+</div> 
+</body> 
+</html> 
