@@ -272,15 +272,13 @@ function initRailRoadDataSource(){
 initRailRoadDataSource();
 
 var drawCamp =  function(camp, i, j, player, _showChessName = false){
-    if(homeCampIdxAry.in_array(String.prototype.concat(i,',',j))){
-        camp.type = '大本营';
-        camp.draw();
-    }
     if(moveCampIdxAry.in_array(String.prototype.concat(i,',',j))){
         camp.type= '行营';
         camp.draw();
-    }else{
-        camp.type = '兵站';
+        return;
+    }
+    if(homeCampIdxAry.in_array(String.prototype.concat(i,',',j))){
+        camp.type =  '大本营';
         camp.draw();
         if(player){
             var chess = player.getChess();
@@ -289,6 +287,16 @@ var drawCamp =  function(camp, i, j, player, _showChessName = false){
             }
             camp.drawChess(chess);
         }
+        return;
+    }
+    camp.type = '兵站';
+    camp.draw();
+    if(player){
+        var chess = player.getChess();
+        if(_showChessName){
+            chess.isShowName = true;
+        }
+        camp.drawChess(chess);
     }
 }
 
@@ -522,6 +530,7 @@ var HiChat = function(){
     this.firstCamp = null;
     this.secondCamp = null;
     this.playerDic = {}; 
+    this.observer = null;
 }
 
 HiChat.prototype = {
@@ -572,10 +581,13 @@ HiChat.prototype = {
         this.socket.on('nickExisted', function(){
             document.getElementById('info').textContent = '用户已存在';
         })
-        this.socket.on('loginSuccess', function(nickName){
+        this.socket.on('loginSuccess', function(nickName, gameState){
             document.getElementById('nickWrapper').style.display = 'none';
             document.getElementById('messageInput').focus();
             that.player.name = nickName;
+            document.getElementById('gameState').innerHTML = gameState;
+            game.state = gameState;
+            
         });
         this.socket.on('system', function(nickName, userCount, type){
             var msg = nickName + (type == 'login' ? ' 加入' : ' 离开');
@@ -602,14 +614,22 @@ HiChat.prototype = {
 
         // 游戏模块
         this.socket.on('event_pick', function(name, type, state){
-            var player = new Player();
-            player.name = name;
-            player.type = type;
-            player.state = state;
-            player.isOnline = true;
-            that.refreshPlayerState(player);
-            that.playerDic[name] = player;
-            document.getElementById(type+'Btn').setAttribute('disabled', 'true');
+            if(type == 'observer'){
+                var ob = new Observer();
+                ob.name = name;
+                ob.isOnline = true;
+                that.observer = ob;
+                that.refreshObserverState();
+            }else{
+                var player = new Player();
+                player.name = name;
+                player.type = type;
+                player.state = state;
+                player.isOnline = true;
+                that.refreshPlayerState(player);
+                that.playerDic[name] = player;
+                document.getElementById(type+'Btn').setAttribute('disabled', 'true');
+            }
         });
         this.socket.on('event_prepare', function(name, state){
             var player = that.playerDic[name];
@@ -626,7 +646,9 @@ HiChat.prototype = {
         });
         this.socket.on('game_prepare', function(){
             that._displayNewMsg('game', '所有玩家已选择席位，游戏准备中');
-            document.getElementById('prepareBtn').removeAttribute('disabled');
+            if(hichat.player.type != 'observer'){
+                document.getElementById('prepareBtn').removeAttribute('disabled');
+            }
             document.getElementById('gameState').innerHTML = config.state.preparing;
             game.state = config.state.preparing;
         });
@@ -671,6 +693,10 @@ HiChat.prototype = {
 
         //pick 
         document.getElementById('pickDiv').addEventListener('click', function(e){
+            console.log(that.player);
+            if(that.player.type == 'observer'){
+                return;
+            }
             if(that.player.state == config.state.pick){
                 if(e.target.hasAttribute('data')){
                     var dataType = e.target.getAttribute('data'); // 选择了其中一席，不能再改变
@@ -680,6 +706,16 @@ HiChat.prototype = {
                         e.target.disabled = true;
                         return;
                     });
+                    that.socket.on('observer_event_pick_success', function(name, chessBoard){
+                        e.target.disabled = true;
+                        that.player.setType(dataType);
+                        that.observer = new Observer();
+                        that.observer.name = name;
+                        that.observer.isOnline = true;
+                        that.observer.state = config.state.preparing;
+                        that.refreshObserverState();
+                        that.observer.initChess(JSON.parse(chessBoard));
+                    })
                     that.socket.on('event_pick_success', function(){
                         e.target.disabled = true;
                         that.player.setType(dataType);
@@ -775,6 +811,24 @@ HiChat.prototype = {
             document.getElementById('gameWindow').appendChild(target);
         }
         target.appendChild(span);
+    },
+    refreshObserverState: function(){
+        var online = this.observer.isOnline ? '在线' : '离线';
+        var name = this.observer.name;
+        var type = '观众席';
+        var msg = '['+online+'] '+name+' '+type ;
+         var span = document.createElement('span');
+        span.innerHTML = msg;
+        var target = document.getElementById(name);
+        if(target){
+            target.firstChild.remove();
+        }else{
+            target = document.createElement('div');
+            target.setAttribute('id', name);
+            document.getElementById('gameWindow').appendChild(target);
+        }
+        target.appendChild(span);
+        document.getElementById('prepareBtn').setAttribute('disabled', true);
     },
     initPlayer : function(){
         this.player = new Player();
@@ -1106,6 +1160,9 @@ var Camp = function(x, y, rowIdx, colIdx){
     }
 }
 Camp.prototype ={
+    setType:function(type){
+        this.type = type;
+    },
     setSize: function(w, h){
         this.chessWidth = w;
         this.chessHeight = h;
@@ -1150,6 +1207,22 @@ var Observer = function(){
     this.name = '';
     this.isOnline = false; 
 }     
+Observer.prototype = {
+    initChess: function(chessDataSource){
+        for(var i =0; i< chessDataSource.length; i++){
+            for(var j =0 ; j < chessDataSource[i].length; j++){
+                if(chessDataSource[i][j].name == '') continue;
+                var chess = new Chess();
+                chess.name = chessDataSource[i][j].name;
+                chess.type = chessDataSource[i][j].type;
+                chess.isShowName = true;
+                chess.fillColor = config.color[chess.type];
+                var camp  = chessBoard[i][j];
+                camp.drawChess(chess);
+            }
+        }
+    }
+}
 
 
 window.onload = function(){
@@ -1157,7 +1230,12 @@ window.onload = function(){
     canvas.setAttribute('height', window.innerHeight );       
       
     canvas.addEventListener('mousedown', function(e){
-        // game.state = config.state.started; game.isOnOrder = true;
+        game.state = config.state.started; game.isOnOrder = true;
+        if(hichat.player.type == 'observer'){
+            if(!game.pickCamp(e))return;
+            console.log('你这是一个安静的美男(女)子');
+            return;
+        }
         if(game.state == config.state.started){ //游戏开始 开始按顺序走步了
             if(!game.isOnOrder) return;
             var camp = game.pickCamp(e);
@@ -1210,7 +1288,10 @@ window.onload = function(){
                         console.log('在铁道上');
                         var availableCamps = [];
                         beginSearch(firstCamp,availableCamps);
-                        console.log(availableCamps);
+                        availableCamps.forEach(function(item){
+                            console.log('可行进的路线有：',item.rowIdx+","+item.colIdx);
+                        });
+                        console.log('可行进营地总个数：',availableCamps.length);
                         if(availableCamps.indexOf(camp) == -1){
                             alert('行进不合法啊！ 大哥');
                             firstCamp.setClicked();

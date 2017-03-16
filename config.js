@@ -22,6 +22,12 @@ var config = {
         yellow: '#ffcc00',
         blue: '#99ccff',
         green: '#66cc00'
+    },
+    judgment: {
+        win: 'win',
+        success: 'success',
+        fail: 'fail',
+        die: 'die' //平了 双方都阵亡
     }
 }
 
