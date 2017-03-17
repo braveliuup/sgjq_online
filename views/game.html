@@ -6,12 +6,18 @@
                 width: 100%;
                 margin: 0;
                 padding:0;
-                overflow-y: hidden;
+                /*overflow-y: hidden;*/
             }
             #canvas {
                 display: block;
                 margin: 0;
                 padding:0;
+            }
+            canvas  {
+                position: absolute;
+            }
+            .chess_selected{
+                border: 3px solid fuchsia;
             }
             #gameWindow{
                 position:absolute;
@@ -131,7 +137,9 @@
         </style>
     </head>
     <body>
-        <canvas id="canvas" ></canvas>
+        <div id="chessBoardDiv">
+            <canvas id="canvas" ></canvas>
+        </div>
         <div id="nickWrapper" >
             <div id="info">
             </div>
@@ -171,6 +179,7 @@
         </div>
     </body>
     <script src="js/socket.io-1.4.5.js"></script>
+    <script src="js/jquery.min.js"></script>
     <script src="js/algo.js"></script>
     <script>
         !function(){
@@ -227,6 +236,24 @@ var middleCampIdxAry = [
     [10,6],[10,8],[10,10],
 ];
 
+var boundsWidth = 850;
+var boundsHeight = 850;
+var boundsCenterX =window.innerWidth / 2; 
+var ltx = boundsCenterX - boundsWidth / 2 ;
+var rbx = ltx + boundsWidth;
+var boundsCenterY =window.innerHeight / 2; 
+var lty = boundsCenterY - boundsHeight / 2 ;
+var rby = lty + boundsHeight;
+var bounds = {
+    lt: new Vertex2d(ltx,lty),
+    rb: new Vertex2d(rbx, rby),
+    vgap : function(){
+        return (this.rb.y - this.lt.y) / (maxCols-1);
+    },
+    hgap : function(){
+        return (this.rb.x - this.lt.x) / (maxRows-1);
+    }
+}
 var RailRoad = function(x,y, x1, y1){
     this.x = x;
     this.y = y;
@@ -349,12 +376,189 @@ var config = {
         die: 'die' //平了 双方都阵亡
     }
 }
+var Camp = function(x, y, rowIdx, colIdx){
+    this.type = '';
+    this.originX = x;
+    this.originY = y;
+    this.fillColor = '#fff';
+    this.rowIdx = rowIdx;
+    this.colIdx = colIdx;
+    this.isClick = false;
+    this.filledChess = null; 
+    this.id = 'camp'+rowIdx+'_'+colIdx;
+    this.canvas = document.createElement('canvas');
 
+    this.addCamp = function(){
+        this.canvas.setAttribute('width', this.campWidth);
+        this.canvas.setAttribute('height', this.campHeight);
+        this.canvas.setAttribute('class', 'camp_canvas');
+        this.canvas.setAttribute('id', this.id);
+        this.canvas.style.left = this.x;
+        this.canvas.style.top = this.y;
+        document.getElementById('chessBoardDiv').appendChild(this.canvas);
+        game.camps[this.id] = this;
+        this.draw();
+    }
+    this.addChess = function(chess){
+        this.filledChess = chess;
+        chess.addChess(this);
+    }
+
+    this.draw = function(){
+        // this.clearRect();
+        var ctx = this.canvas.getContext('2d');
+        ctx.strokeStyle = '#1c1c1c';
+        ctx.fillStyle = '#fff';
+        if(this.type == '行营'){
+            ctx.beginPath();
+            ctx.arc(this.campWidth/2, this.campHeight/2, this.campWidth/2-1, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.fill();
+        }else{
+            ctx.strokeRect(1, 1, this.campWidth -2,this.campHeight-2);
+            ctx.fillRect(1, 1,this.campWidth-2,this.campHeight-2);
+        }
+         this.drawText(this.type);
+    }  
+
+    this.drawText = function(text){
+        var ctx = this.canvas.getContext('2d');
+        ctx.save(); 
+        // 填充文字
+        // 旋转之前将画布的中心位置translate到对象的中心点
+        if(typeof(this.rotateRadian) !== 'undefined' ){
+            ctx.translate(this.campWidth/2, this.campHeight/2);
+            ctx.rotate(this.rotateRadian);
+            ctx.translate(-this.campWidth/2, -this.campHeight/2);
+        }
+        ctx.font = 'normal 12px 微软雅黑';
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, this.campWidth/2,  this.campHeight/2);
+        ctx.restore();
+    }
+
+    this.in_camp = function(pageX, pageY){
+        if(pageX > this.x && pageX < this.x + this.chessWidth && pageY > this.y && pageY < this.y + this.chessHeight){
+            return true;
+        }
+        return false;
+    }
+}
+Camp.prototype ={
+    setType:function(type){
+        this.type = type;
+    },
+    setSize: function(w, h){
+        this.chessWidth = w;
+        this.chessHeight = h;
+        this.campWidth = w;
+        this.campHeight = h;
+        if(this.type == '行营'){
+            this.campWidth = 50;
+            this.campHeight = 50;
+        }
+        this.x = this.originX - this.campWidth/2;
+        this.y = this.originY - this.campHeight/2;
+    },
+    setTextRotate : function(radian){
+        this.rotateRadian = radian; // 弧度 Math.PI
+    },
+    setFill: function(fillColor){
+        this.fillColor = fillColor;
+    },
+    setClicked: function(){
+        if(this.filledChess == null) return;
+        this.isClick = this.isClick ? false: true;
+        if(this.isClick){
+            this.drawBounds();
+        }else{
+            this.clearBounds();
+        }
+    },
+    drawBounds: function(){
+        var that = this;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#000';
+        ctx.strokeRect(that.x, that.y, that.chessWidth, that.chessHeight);
+    },
+    clearBounds: function(){
+        this.clearRect();
+        this.draw();
+        if(this.filledChess != null){
+            this.drawChess(this.filledChess);
+        }
+    },
+    clearRect: function(){
+        this.isClick = false;
+        ctx.clearRect(this.x-2, this.y-2, this.chessWidth+4, this.chessHeight+4);
+    }
+};  
 var Chess = function(){
     this.name = '';
     this.fillColor = '#000';
     this.isShowName = false;
     this.type = '';
+    this.camp;
+    this.chessWidth;
+    this.chessHeight;
+    this.x;
+    this.y;
+    this.chessCanvas = document.createElement('canvas');
+}
+Chess.prototype = {
+    addChess:function(camp){
+        this.camp = camp;
+        this.chessWidth = camp.chessWidth;
+        this.chessHeight = camp.chessHeight;
+        this.x = this.camp.x + (this.camp.campWidth - this.chessWidth) / 2;
+        this.y = this.camp.y + (this.camp.campHeight - this.chessHeight) / 2;
+        this.chessCanvas.setAttribute('width', this.chessWidth);
+        this.chessCanvas.setAttribute('height', this.chessHeight);
+        this.chessCanvas.setAttribute('class', 'chess_canvas  chess_canvas_'+this.type);
+        this.chessCanvas.style.left = this.x;
+        this.chessCanvas.style.top = this.y;
+        this.chessCanvas.setAttribute('id', this.id);
+        document.getElementById('chessBoardDiv').appendChild(this.chessCanvas);
+        this.drawChess();
+        game.chesses[this.id] = this;
+    },
+    drawChess:function(){
+        var ctx = this.chessCanvas.getContext('2d');
+        ctx.fillStyle = this.fillColor;
+        ctx.fillRect(1 , 1 ,this.chessWidth-2,this.chessHeight-2);
+        ctx.save(); 
+        if(typeof(this.rotateRadian) !== 'undefined' ){
+            ctx.translate(this.chessWidth/2, this.chessHeight/2);
+            ctx.rotate(this.rotateRadian);
+            ctx.translate(-this.chessWidth/2, -this.chessHeight/2);
+        }
+        if(this.isShowName ){
+            ctx.font = 'bold 14px 微软雅黑';
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.name, this.chessWidth/2,  this.chessHeight/2 );
+        }
+        ctx.restore();
+    },
+    redraw:function(){
+        this.x = this.camp.x + (this.camp.campWidth - this.chessWidth) / 2;
+        this.y = this.camp.y + (this.camp.campHeight - this.chessHeight) / 2;
+        this.chessCanvas.style.left = this.x;
+        this.chessCanvas.style.top = this.y;
+    },
+    setCamp: function(camp){
+        this.camp = camp;
+        camp.filledChess = this;
+    },
+    destroy: function(){
+        this.camp.filledChess = null;
+        $('#'+this.id).remove();
+        delete game.chesses[this.id];
+
+    }
 }
 
 var Player = function(type){
@@ -368,6 +572,8 @@ var Player = function(type){
     this.isOnline = false; 
     this.state = config.state.pick;
     this.initChess();
+    this.fristChess;
+    this.secondChess;
 }
 
 Player.prototype = {
@@ -378,6 +584,8 @@ Player.prototype = {
             chess.name = pieces[i];
             chess.fillColor = config.color[this.type];
             chess.type = this.type;
+            chess.isShowName = false;
+            chess.id = chess.type+i;
             this.chesses.push(chess); 
         }
     },
@@ -418,56 +626,75 @@ Player.prototype = {
         for(var i = 11; i < 17; i++){
             for(var j= 6; j < 11; j++){
                 var camp = chessBoard[i][j];
-                camp.setSize(chessW, chessH);
+                // camp.setSize(chessW, chessH);
                 // drawCamp(camp, i, j , hichat.player , true);
-                
-                if(hichat.player.type == 'green' || hichat.player.type == 'observer'){
-                    drawCamp(camp, i, j , hichat.greenPlayer , true);
-                }else{
-                    drawCamp(camp, i, j , hichat.greenPlayer , false);
+                if(camp.type != '行营'){
+                    var chess = hichat.player.getChess();
+                    chess.isShowName = true;
+                    camp.addChess(chess);
                 }
+                // if(hichat.player.type == 'green' || hichat.player.type == 'observer'){
+                //     drawCamp(camp, i, j , hichat.greenPlayer , true);
+                // }else{
+                //     drawCamp(camp, i, j , hichat.greenPlayer , false);
+                // }
             }
         }
         /// 上方  red
         for(var i = 5; i >= 0; i--){
             for(var j= 6; j < 11; j++){
                 var camp = chessBoard[i][j];
-                camp.setSize(chessW, chessH);
-                camp.setTextRotate(-Math.PI);
-                // drawCamp(camp, i, j ,hichat.player.teamPlayer);
-                if(hichat.player.type == 'red' || hichat.player.type == 'observer'){
-                    drawCamp(camp, i, j ,hichat.redPlayer , true);
-                }else{
-                    drawCamp(camp, i, j ,hichat.redPlayer , false);
+                // camp.setSize(chessW, chessH);
+                // camp.setTextRotate(-Math.PI);
+                if(camp.type != '行营'){
+                    var chess = hichat.player.teamPlayer.getChess();
+                    chess.isShowName = false;
+                    camp.addChess(chess);
                 }
+                // drawCamp(camp, i, j ,hichat.player.teamPlayer);
+                // if(hichat.player.type == 'red' || hichat.player.type == 'observer'){
+                //     drawCamp(camp, i, j ,hichat.redPlayer , true);
+                // }else{
+                //     drawCamp(camp, i, j ,hichat.redPlayer , false);
+                // }
             }
         }
         //  左方 yellow
         for(var j = 5; j >=0; j--){
             for(var i= 6; i < 11; i++){
                 var camp = chessBoard[i][j];
-                camp.setSize(chessH, chessW);
-                camp.setTextRotate(Math.PI/2);
-                // drawCamp(camp, i, j ,hichat.player.lastPlayer);
-                if(hichat.player.type == 'yellow' || hichat.player.type == 'observer'){
-                    drawCamp(camp, i, j ,hichat.yellowPlayer, true);
-                }else{
-                    drawCamp(camp, i, j ,hichat.yellowPlayer, false);
+                if(camp.type != '行营'){
+                    var chess = hichat.player.lastPlayer.getChess();
+                    chess.isShowName = false;
+                    camp.addChess(chess);
                 }
+                // camp.setSize(chessH, chessW);
+                // camp.setTextRotate(Math.PI/2);
+                // drawCamp(camp, i, j ,hichat.player.lastPlayer);
+                // if(hichat.player.type == 'yellow' || hichat.player.type == 'observer'){
+                //     drawCamp(camp, i, j ,hichat.yellowPlayer, true);
+                // }else{
+                //     drawCamp(camp, i, j ,hichat.yellowPlayer, false);
+                // }
             }
         }
         // 右方 blue
         for(var j = 11; j <17; j++){
             for(var i= 6; i < 11; i++){
                 var camp = chessBoard[i][j];
-                camp.setSize(chessH, chessW);
-                camp.setTextRotate(-Math.PI/2);
-                // drawCamp(camp, i, j ,hichat.player.nextPlayer);
-                if(hichat.player.type == 'blue' || hichat.player.type == 'observer'){
-                    drawCamp(camp, i, j ,hichat.bluePlayer, true);
-                }else{
-                    drawCamp(camp, i, j ,hichat.bluePlayer, false);
+                if(camp.type != '行营'){
+                    var chess = hichat.player.nextPlayer.getChess();
+                    chess.isShowName = false;
+                    camp.addChess(chess);
                 }
+                // camp.setSize(chessH, chessW);
+                // camp.setTextRotate(-Math.PI/2);
+                // drawCamp(camp, i, j ,hichat.player.nextPlayer);
+                // if(hichat.player.type == 'blue' || hichat.player.type == 'observer'){
+                //     drawCamp(camp, i, j ,hichat.bluePlayer, true);
+                // }else{
+                //     drawCamp(camp, i, j ,hichat.bluePlayer, false);
+                // }
             }
         }
     },
@@ -548,7 +775,160 @@ Player.prototype = {
             return this.lastPlayer;
         }
         return this;
+    },
+    preparing:function(){
+        //进入准备状态
+        $('.chess_canvas_'+this.type).bind('click', this.exchangeChess);
+    },
+    prepared:function(){
+        //准备完成状态
+        $('.chess_canvas_'+this.type).unbind('click', this.exchangeChess);
+        if(Player.prototype.firstChess){
+            $(Player.prototype.firstChess).removeClass('chess_selected');
+            Player.prototype.firstChess = null;
+        }
+    },
+    gameStart:function(){
+        // 游戏开始
+        $('.chess_canvas_'+this.type).bind('click', this.moveChess);
+        // $('.camp_canvas').bind('click', this.exchangeChess);
+    },
+    offOrder:function(){
+        //  $('.chess_canvas_'+this.type).unbind('click', this.moveChess);
+        //  $('.camp_canvas').unbind('click');
+        //  $('.chess_canvas_'+hichat.player.lastPlayer.type).unbind('click');
+        //  $('.chess_canvas_'+hichat.player.lastPlayer.type).unbind('click');
+         if(this.prepareMovedChess){
+             $(this.prepareMovedChess).removeClass('chess_selected');
+             this.prepareMovedChess = null;
+         }
+    },
+    moveChess: function(e){
+        if($(e.target).hasClass('chess_selected')){
+           $(e.target).removeClass('chess_selected');
+           hichat.player.prepareMovedChess = null; 
+           $('.camp_canvas').unbind('click');
+           $('.chess_canvas_'+hichat.player.lastPlayer.type).unbind('click');
+           $('.chess_canvas_'+hichat.player.lastPlayer.type).unbind('click');
+        }else{
+            if( !hichat.player.prepareMovedChess ){
+                $('.camp_canvas').bind('click', function(evt){
+                    console.log('选择了camp,准备进营 ',evt.target);
+                    hichat.player.occupyCamp(evt.target);
+                    $('.camp_canvas').unbind('click');
+                    hichat.player.offOrder();
+                });
+                 $('.chess_canvas_'+hichat.player.lastPlayer.type).bind('click', function(evt){
+                    console.log('选择了对手棋子,准备进攻 ',hichat.player.lastPlayer.type ,evt.target);
+                    hichat.player.attackChess(evt.target);
+                    $('.chess_canvas_'+hichat.player.lastPlayer.type).unbind('click');
+                    hichat.player.offOrder();
+                 });
+                 $('.chess_canvas_'+hichat.player.nextPlayer.type).bind('click', function(evt){
+                    console.log('选择了对手棋子,准备进攻 ',hichat.player.nextPlayer.type,evt.target);
+                    hichat.player.attackChess(evt.target);
+                     $('.chess_canvas_'+hichat.player.lastPlayer.type).unbind('click');
+                     hichat.player.offOrder();
+                 });
+            }else{
+                $(hichat.player.prepareMovedChess).removeClass('chess_selected');
+            }
+            $(e.target).addClass('chess_selected');
+            hichat.player.prepareMovedChess = e.target;
+        }
+    },
+    occupyCamp: function(targetCamp){
+        var chess = game.chesses[this.prepareMovedChess.id];
+        var availCamps = computeAvailCamp(chess.camp);
+        var camp = game.camps[targetCamp.id];
+        console.log(availCamps)
+        if(availCamps.indexOf(camp) != -1){
+            chess.setCamp(camp);
+            chess.redraw();
+            return true;
+        }else{
+            alert('行进不合法');
+            return false;
+        }
+    },
+    attackChess: function(targetChess){
+        var attackedChess = game.chesses[targetChess.id];
+        var chess = game.chesses[this.prepareMovedChess.id];
+        var availCamps = computeAvailCamp(chess.camp);
+        if(availCamps.indexOf(attackedChess.camp) != -1){
+            var result = GameRule.judgment(chess, attackedChess);
+            console.log(result)
+            switch(result){
+                case config.judgment.win:
+                chess.destroy();
+                break;
+                case config.judgment.die:
+                chess.destroy();
+                attackedChess.destroy();
+                break;
+                case config.judgment.success:
+                attackedChess.destroy();
+                break;
+                case config.judgment.fail:
+                chess.destroy();
+                break;
+            }
+            return true;
+        }else{
+            alert('行进不合法');
+            return false;
+        }
+    },
+    exchangeChess: function(e){
+        //调配旗子
+        if($(e.target).hasClass('chess_selected')){
+           $(e.target).removeClass('chess_selected');
+           Player.prototype.firstChess = null; 
+        }else{
+            if(Player.prototype.firstChess){
+                Player.prototype.swapChess(e.target,Player.prototype.firstChess);
+                $(Player.prototype.firstChess).removeClass('chess_selected');
+                Player.prototype.firstChess = null;
+            }else{
+                Player.prototype.firstChess = e.target;
+                $(e.target).addClass('chess_selected');
+            }
+        }
+    },
+    swapChess:function(secondChess, firstChess){
+        // 判断是否符合交换规则
+        var chess2 = game.chesses[$(secondChess).attr('id')];
+        var chess1 = game.chesses[$(firstChess).attr('id')];
+        // // 炸弹不能在第一排
+        if(chess2.name == '炸弹' || chess1.name =='炸弹'){
+            if( chess2.camp.rowIdx == 11 || chess1.camp.rowIdx == 11){
+                alert('炸弹不能在第一排');
+                return;
+            }
+        }
+        // // 地雷只能在后两排
+        if(chess2.name  == '地雷' || chess1.name =='地雷'){
+            if(chess2.camp.rowIdx  < 15 || chess1.camp.rowIdx < 15){
+                alert('地雷只能在后两排');
+                return;
+            }
+        }
+        // // 军旗只能在大本营
+        if(chess2.name == '军旗' || chess1.name  =='军旗'){
+            if( chess2.camp.rowIdx+','+chess2.camp.colIdx != '16,7'   
+                || chess1.camp.rowIdx+','+chess1.camp.colIdx != '16,9'){
+                alert('军旗只能在大本营');
+                return;
+            }
+        }
+        var temp = chess2.camp;
+        chess2.setCamp(chess1.camp);
+        chess1.setCamp(temp);
+        
+        chess2.redraw();
+        chess1.redraw();
     }
+    
 }
 
 
@@ -672,6 +1052,7 @@ HiChat.prototype = {
             document.getElementById('gameState').innerHTML = config.state.started;
             document.getElementById('prepareBtn').setAttribute('disabled', true);
             game.state = config.state.started;
+            hichat.player.gameStart();
         });
         this.socket.on('game_prepare', function(){
             that._displayNewMsg('game', '所有玩家已选择席位，游戏准备中');
@@ -786,7 +1167,8 @@ HiChat.prototype = {
                         }
                         that.player.renderPrepare();
                         that.playerDic[that.player.name] = that.player;
-                        rotate();
+                        // that.player.preparing();
+                        that.player.gameStart();
                     });
                 }
             }
@@ -800,15 +1182,10 @@ HiChat.prototype = {
             if(event.currentTarget.value == '准备'){
                 event.currentTarget.setAttribute('value', '取消准备');
                 that.player.state = config.state.prepared;
-                if(firstCamp){
-                    firstCamp.drawChess();
-                    firstCamp = null;
-                }
-                // prepareTip.innerHTML = '已准备';
+                that.player.prepared();
             }else{
                 event.currentTarget.setAttribute('value', '准备');
                 that.player.state = config.state.preparing;
-                // prepareTip.innerHTML = '未准备';
             }
             that.refreshPlayerState(that.player);
             that.socket.emit('event_prepare', that.player.name, that.player.state);
@@ -899,6 +1276,8 @@ HiChat.prototype = {
 
 var Game = function(){
     this.state = config.state.pick;
+    this.camps = {};
+    this.chesses = {};
 }
 Game.prototype = {
     init: function(){
@@ -908,14 +1287,17 @@ Game.prototype = {
             var col = middleCampIdxAry[i][1];
             var camp = chessBoard[row][col];
             camp.setSize(chessW, chessW);
-            drawCamp(camp, row, col);
+            // drawCamp(camp, row, col);
+            camp.addCamp();
+            
         }
         // 下方 （玩家主视角)
         for(var i = 11; i < 17; i++){
             for(var j= 6; j < 11; j++){
                 var camp = chessBoard[i][j];
                 camp.setSize(chessW, chessH);
-                drawCamp(camp, i, j);
+                // drawCamp(camp, i, j);
+                camp.addCamp();
             }
         }
         /// 上方
@@ -924,7 +1306,8 @@ Game.prototype = {
                 var camp = chessBoard[i][j];
                 camp.setSize(chessW, chessH);
                 camp.setTextRotate(-Math.PI);
-                drawCamp(camp, i, j );
+                camp.addCamp();
+                // drawCamp(camp, i, j );
             }
         }
         //  左方
@@ -933,7 +1316,8 @@ Game.prototype = {
                 var camp = chessBoard[i][j];
                 camp.setSize(chessH, chessW);
                 camp.setTextRotate(Math.PI/2);
-                drawCamp(camp, i, j );
+                camp.addCamp();
+                // drawCamp(camp, i, j );
 
             }
         }
@@ -943,7 +1327,8 @@ Game.prototype = {
                 var camp = chessBoard[i][j];
                 camp.setSize(chessH, chessW);
                 camp.setTextRotate(-Math.PI/2);
-                drawCamp(camp, i, j );
+                camp.addCamp();
+                // drawCamp(camp, i, j );
             }
         }
     },
@@ -1067,29 +1452,7 @@ Game.prototype = {
                 }
             }
         }
-    }
-       
-}
-
-
-
-var boundsWidth = 850;
-var boundsHeight = 850;
-var boundsCenterX =window.innerWidth / 2; 
-var ltx = boundsCenterX - boundsWidth / 2 ;
-var rbx = ltx + boundsWidth;
-var boundsCenterY =window.innerHeight / 2; 
-var lty = boundsCenterY - boundsHeight / 2 ;
-var rby = lty + boundsHeight;
-var bounds = {
-    lt: new Vertex2d(ltx,lty),
-    rb: new Vertex2d(rbx, rby),
-    vgap : function(){
-        return (this.rb.y - this.lt.y) / (maxCols-1);
     },
-    hgap : function(){
-        return (this.rb.x - this.lt.x) / (maxRows-1);
-    }
 }
 
 var GameRule = {
@@ -1162,121 +1525,7 @@ var GameRule = {
     }
 }
 
-var Camp = function(x, y, rowIdx, colIdx){
-    this.type = '';
-    this.originX = x;
-    this.originY = y;
-    this.fillColor = '#fff';
-    this.rowIdx = rowIdx;
-    this.colIdx = colIdx;
-    this.isClick = false;
-    this.filledChess = null; 
-
-    this.draw = function(){
-        this.clearRect();
-        ctx.strokeStyle = 'red';
-        ctx.fillStyle = '#fff';
-        if(this.type == '行营'){
-            ctx.beginPath();
-            ctx.arc(this.originX, this.originY, 25, 0, Math.PI*2);
-            ctx.stroke();
-            ctx.fill();
-        }else{
-            ctx.strokeRect(this.x, this.y, this.chessWidth,this.chessHeight);
-            ctx.fillRect(this.x, this.y,this.chessWidth,this.chessHeight);
-        }
-        this.drawText(this.type);
-    }  
-
-    this.drawText = function(text){
-        ctx.save(); 
-        // 填充文字
-        // 旋转之前将画布的中心位置translate到对象的中心点
-        if(typeof(this.rotateRadian) !== 'undefined' ){
-            ctx.translate(this.originX, this.originY);
-            ctx.rotate(this.rotateRadian);
-            ctx.translate(-this.originX, -this.originY);
-        }
-        ctx.font = 'normal 14px 微软雅黑';
-        ctx.fillStyle = '#000';
-        ctx.textAlign = 'center';
-        ctx.fillText(text, this.x+this.chessWidth/2, this.y + this.chessHeight/2);
-        ctx.restore();
-    }
-
-    this.drawChess = function(chess){
-        this.clearRect();
-        if(chess){
-            this.filledChess = chess;
-        }
-        ctx.fillStyle = this.filledChess.fillColor;
-        ctx.fillRect(this.x , this.y ,this.chessWidth,this.chessHeight);
-        ctx.save(); 
-        if(typeof(this.rotateRadian) !== 'undefined' ){
-            ctx.translate(this.originX, this.originY);
-            ctx.rotate(this.rotateRadian);
-            ctx.translate(-this.originX, -this.originY);
-        }
-        if(this.filledChess.isShowName ){
-            ctx.font = 'bold 15px 微软雅黑';
-            ctx.fillStyle = '#000';
-            ctx.textAlign = 'center';
-            ctx.fillText(this.filledChess.name, this.x+this.chessWidth/2, this.y + this.chessHeight/2 + 4);
-        }
-        ctx.restore();
-        
-    }
-
-    this.in_camp = function(pageX, pageY){
-        if(pageX > this.x && pageX < this.x + this.chessWidth && pageY > this.y && pageY < this.y + this.chessHeight){
-            return true;
-        }
-        return false;
-    }
-}
-Camp.prototype ={
-    setType:function(type){
-        this.type = type;
-    },
-    setSize: function(w, h){
-        this.chessWidth = w;
-        this.chessHeight = h;
-        this.x = this.originX - this.chessWidth/2;
-        this.y = this.originY - this.chessHeight/2
-    },
-    setTextRotate : function(radian){
-        this.rotateRadian = radian; // 弧度 Math.PI
-    },
-    setFill: function(fillColor){
-        this.fillColor = fillColor;
-    },
-    setClicked: function(){
-        if(this.filledChess == null) return;
-        this.isClick = this.isClick ? false: true;
-        if(this.isClick){
-            this.drawBounds();
-        }else{
-            this.clearBounds();
-        }
-    },
-    drawBounds: function(){
-        var that = this;
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#000';
-        ctx.strokeRect(that.x, that.y, that.chessWidth, that.chessHeight);
-    },
-    clearBounds: function(){
-        this.clearRect();
-        this.draw();
-        if(this.filledChess != null){
-            this.drawChess(this.filledChess);
-        }
-    },
-    clearRect: function(){
-        this.isClick = false;
-        ctx.clearRect(this.x-2, this.y-2, this.chessWidth+4, this.chessHeight+4);
-    }
-};   
+ 
 
 var Observer = function(){
     this.name = '';
@@ -1299,12 +1548,141 @@ Observer.prototype = {
     }
 }
 
-
 window.onload = function(){
     canvas.setAttribute('width', window.innerWidth );       
     canvas.setAttribute('height', window.innerHeight );       
-      
-    canvas.addEventListener('mousedown', function(e){
+    function drawBaseGrid(){
+        var temp = ['6,7', '6,9',
+         '7,6','7,7','7,8','7,9','7,10', 
+         '8,7', '8,9',
+         '9,6','9,7','9,8','9,9','9,10',
+         '10,7', '10,9',
+        ];
+        for(var i= 0 ; i < maxRows; i++){
+            chessBoard[i] = [];
+            var ctx = canvas.getContext('2d');
+            ctx.beginPath();
+            ctx.moveTo(bounds.lt.x, i*bounds.vgap()+bounds.lt.y);
+            ctx.lineTo(bounds.lt.x + bounds.hgap()*(maxRows-1), i*bounds.vgap() +bounds.lt.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(i*bounds.hgap()+bounds.lt.x, bounds.lt.y);
+            ctx.lineTo(i*bounds.hgap() + bounds.lt.x, bounds.lt.y +bounds.vgap()*(maxCols -1) );
+            ctx.stroke();
+            for(var j = 0 ; j < maxCols ; j++){
+                var originX = bounds.lt.x + j*bounds.hgap() ;
+                var originY =  bounds.lt.y + i*bounds.vgap();
+                var camp = new Camp(originX, originY, i, j);
+                if(homeCampIdxAry.indexOf(i+','+j) != -1){
+                    camp.type = '大本营';
+                }else if(moveCampIdxAry.indexOf(i+','+j) != -1){
+                    camp.type = '行营';
+                }else if((j < 6 && i < 6) || (j>10 && i < 6) || (j>10 && i > 10) || (j < 6 && i > 10)){
+                    camp.type = '';                    
+                }else if(temp.indexOf(i+","+j) != -1){
+                    camp.type = '';
+                }else{
+                    camp.type = '兵站';
+                }
+                chessBoard[i][j] = camp;
+            }
+        }
+    }
+    function drawXieXian(){
+        for(var i =0 ; i < moveCampIdxAry.length; i++){
+            var idxAry = moveCampIdxAry[i].split(',').map(function(item){
+                return Number(item);
+            });
+            var originCamp = chessBoard[idxAry[0]][idxAry[1]];
+            var ctx = canvas.getContext('2d');
+            var x = idxAry[0] - 1;
+            var y = idxAry[1] -1;
+            ctx.beginPath();
+            var camp = chessBoard[x][y];
+            ctx.moveTo(camp.originX, camp.originY);
+            ctx.lineTo(originCamp.originX, originCamp.originY);
+            ctx.stroke();
+            //////
+            x = idxAry[0] + 1;
+            y = idxAry[1] - 1 ;
+            ctx.beginPath();
+            camp = chessBoard[x][y];
+            ctx.moveTo(camp.originX, camp.originY);
+            ctx.lineTo(originCamp.originX, originCamp.originY);
+            ctx.stroke();
+            ///////
+            x = idxAry[0] + 1;
+            y = idxAry[1] + 1 ;
+            ctx.beginPath();
+            camp = chessBoard[x][y];
+            ctx.moveTo(camp.originX, camp.originY);
+            ctx.lineTo(originCamp.originX, originCamp.originY);
+            ctx.stroke();
+            ///////
+            x = idxAry[0] -1 ;
+            y = idxAry[1] + 1 ;
+            ctx.beginPath();
+            camp = chessBoard[x][y];
+            ctx.moveTo(camp.originX, camp.originY);
+            ctx.lineTo(originCamp.originX, originCamp.originY);
+            ctx.stroke();
+        }
+    }
+    function drawRailRoad(){
+        ctx.save();
+        ctx.lineWidth = 6;
+        for(var key in railRoadRowDic){
+            var start = railRoadRowDic[key][0];
+            var end = railRoadRowDic[key][railRoadRowDic[key].length - 1]; 
+            ctx.beginPath();
+            var x = chessBoard[start[1]][start[0]].originX;
+            var y = chessBoard[start[1]][start[0]].originY;
+            var x1 = chessBoard[end[1]][end[0]].originX;
+            var y1 = chessBoard[end[1]][end[0]].originY;
+            ctx.moveTo(x, y);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+        }
+        for(var key in railRoadColDic){
+            var start = railRoadColDic[key][0];
+            var end = railRoadColDic[key][railRoadColDic[key].length - 1]; 
+            ctx.beginPath();
+            var x = chessBoard[start[1]][start[0]].originX;
+            var y = chessBoard[start[1]][start[0]].originY;
+            var x1 = chessBoard[end[1]][end[0]].originX;
+            var y1 = chessBoard[end[1]][end[0]].originY;
+            ctx.moveTo(x, y);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+        }
+        [[6,5,5,6],[6,11,5,10],[10,11,11,10],[10,5,11,6]].forEach(function(item, idx){
+            ctx.beginPath();
+            var x = chessBoard[item[0]][item[1]].originX;
+            var y = chessBoard[item[0]][item[1]].originY;
+            var x1 = chessBoard[item[2]][item[3]].originX;
+            var y1 = chessBoard[item[2]][item[3]].originY;
+            ctx.moveTo(x, y);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+        });
+        ctx.restore();
+    }
+
+    function initChessBoard(){
+        drawBaseGrid();
+        drawXieXian();
+        drawRailRoad();
+    }
+    initChessBoard();
+    
+    hichat = new HiChat();
+    hichat.init();  
+    game = new Game();
+    game.init();
+    game.mock_started = true;//模拟开始状态
+    // game.mock_preparing = true;//模拟准备状态
+
+      canvas.addEventListener('mousedown', function(e){
         if(game.mock_started){
             game.state = config.state.started; game.isOnOrder = true; // 模拟开始状态
         }
@@ -1501,117 +1879,6 @@ window.onload = function(){
             }
         }
     });
-
-    function drawBaseGrid(){
-        for(var i= 0 ; i < maxRows; i++){
-            chessBoard[i] = [];
-            var ctx = canvas.getContext('2d');
-            ctx.beginPath();
-            ctx.moveTo(bounds.lt.x, i*bounds.vgap()+bounds.lt.y);
-            ctx.lineTo(bounds.lt.x + bounds.hgap()*(maxRows-1), i*bounds.vgap() +bounds.lt.y);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(i*bounds.hgap()+bounds.lt.x, bounds.lt.y);
-            ctx.lineTo(i*bounds.hgap() + bounds.lt.x, bounds.lt.y +bounds.vgap()*(maxCols -1) );
-            ctx.stroke();
-            for(var j = 0 ; j < maxCols ; j++){
-                var originX = bounds.lt.x + j*bounds.hgap() ;
-                var originY =  bounds.lt.y + i*bounds.vgap();
-                var camp = new Camp(originX, originY, i, j);
-                chessBoard[i][j] = camp;
-            }
-        }
-    }
-    function drawXieXian(){
-        for(var i =0 ; i < moveCampIdxAry.length; i++){
-            var idxAry = moveCampIdxAry[i].split(',').map(function(item){
-                return Number(item);
-            });
-            var originCamp = chessBoard[idxAry[0]][idxAry[1]];
-            var ctx = canvas.getContext('2d');
-            var x = idxAry[0] - 1;
-            var y = idxAry[1] -1;
-            ctx.beginPath();
-            var camp = chessBoard[x][y];
-            ctx.moveTo(camp.originX, camp.originY);
-            ctx.lineTo(originCamp.originX, originCamp.originY);
-            ctx.stroke();
-            //////
-            x = idxAry[0] + 1;
-            y = idxAry[1] - 1 ;
-            ctx.beginPath();
-            camp = chessBoard[x][y];
-            ctx.moveTo(camp.originX, camp.originY);
-            ctx.lineTo(originCamp.originX, originCamp.originY);
-            ctx.stroke();
-            ///////
-            x = idxAry[0] + 1;
-            y = idxAry[1] + 1 ;
-            ctx.beginPath();
-            camp = chessBoard[x][y];
-            ctx.moveTo(camp.originX, camp.originY);
-            ctx.lineTo(originCamp.originX, originCamp.originY);
-            ctx.stroke();
-            ///////
-            x = idxAry[0] -1 ;
-            y = idxAry[1] + 1 ;
-            ctx.beginPath();
-            camp = chessBoard[x][y];
-            ctx.moveTo(camp.originX, camp.originY);
-            ctx.lineTo(originCamp.originX, originCamp.originY);
-            ctx.stroke();
-        }
-    }
-    function drawRailRoad(){
-        ctx.save();
-        ctx.lineWidth = 6;
-        for(var key in railRoadRowDic){
-            var start = railRoadRowDic[key][0];
-            var end = railRoadRowDic[key][railRoadRowDic[key].length - 1]; 
-            ctx.beginPath();
-            var x = chessBoard[start[1]][start[0]].originX;
-            var y = chessBoard[start[1]][start[0]].originY;
-            var x1 = chessBoard[end[1]][end[0]].originX;
-            var y1 = chessBoard[end[1]][end[0]].originY;
-            ctx.moveTo(x, y);
-            ctx.lineTo(x1, y1);
-            ctx.stroke();
-        }
-        for(var key in railRoadColDic){
-            var start = railRoadColDic[key][0];
-            var end = railRoadColDic[key][railRoadColDic[key].length - 1]; 
-            ctx.beginPath();
-            var x = chessBoard[start[1]][start[0]].originX;
-            var y = chessBoard[start[1]][start[0]].originY;
-            var x1 = chessBoard[end[1]][end[0]].originX;
-            var y1 = chessBoard[end[1]][end[0]].originY;
-            ctx.moveTo(x, y);
-            ctx.lineTo(x1, y1);
-            ctx.stroke();
-        }
-        [[6,5,5,6],[6,11,5,10],[10,11,11,10],[10,5,11,6]].forEach(function(item, idx){
-            ctx.beginPath();
-            var x = chessBoard[item[0]][item[1]].originX;
-            var y = chessBoard[item[0]][item[1]].originY;
-            var x1 = chessBoard[item[2]][item[3]].originX;
-            var y1 = chessBoard[item[2]][item[3]].originY;
-            ctx.moveTo(x, y);
-            ctx.lineTo(x1, y1);
-            ctx.stroke();
-        });
-        ctx.restore();
-    }
-
-    drawBaseGrid();
-    drawXieXian();
-    drawRailRoad();
-
-    hichat = new HiChat();
-    hichat.init();  
-    game = new Game();
-    game.init();
-    game.mock_started = true;//模拟开始状态
-    // game.mock_preparing = true;//模拟准备状态
 }
 var deg = 0 ;
 function rotate (){
