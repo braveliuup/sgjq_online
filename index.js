@@ -147,32 +147,36 @@ io.on('connection', function(socket){
             }
         }        
     });
-    socket.on('event_occupy', function(row1, col1, name, type, row2, col2){
+    // 进营事件
+    socket.on('event_occupy', function(type,chessId, campId){
         kdebug.info(type+':event_occupy...');
         var nextType =turnToNext(type);
         var player = findPlayerByType(nextType);
         var nextPlayerName = player?player.name:'';
         io.sockets.emit('event_turnorder', nextType, nextPlayerName);
         kdebug.info('it is turn to '+ nextType);
-        socket.broadcast.emit('event_occupy', row1, col1, name, type, row2, col2);   
-        moveChess(row1, col1, row2, col2);
+        socket.broadcast.emit('event_occupy', chessId, campId);   
+        // moveChess(row1, col1, row2, col2);
     });
-    socket.on('event_attack', function(row1, col1, name, type, row2, col2, overtype){
+    // socket.on('event_occupy', function(row1, col1, name, type, row2, col2){
+    //     kdebug.info(type+':event_occupy...');
+    //     var nextType =turnToNext(type);
+    //     var player = findPlayerByType(nextType);
+    //     var nextPlayerName = player?player.name:'';
+    //     io.sockets.emit('event_turnorder', nextType, nextPlayerName);
+    //     kdebug.info('it is turn to '+ nextType);
+    //     socket.broadcast.emit('event_occupy', row1, col1, name, type, row2, col2);   
+    //     moveChess(row1, col1, row2, col2);
+    // });
+    socket.on('event_attack', function(type, chessId, targetChessId){
         kdebug.info(type+':event_attack...');
-        console.log(overtype)
-        console.log(stepOrder)
-        if(overtype){
-            stepOrder.splice(stepOrder.indexOf(overtype), 1);
-        }
-        console.log(stepOrder)
-        
         var nextType =turnToNext(type);
         var player = findPlayerByType(nextType);
         var nextPlayerName = player?player.name:'';
         io.sockets.emit('event_turnorder', nextType, nextPlayerName);
         kdebug.info('it is turn to '+ nextType);
-        socket.broadcast.emit('event_attack', row1, col1, name, type, row2, col2);       
-        attackChess(row1, col1, row2, col2); 
+        socket.broadcast.emit('event_attack',  chessId, targetChessId);       
+        // attackChess(row1, col1, row2, col2); 
     });
     socket.on('event_player_over', function(type){
         kdebug.info(type+': over.....');

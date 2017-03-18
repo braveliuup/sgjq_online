@@ -280,21 +280,21 @@ function computeAvailCamp(originCamp){
             }
             while(campDownRowIdx < 16){
                 campDownRowIdx++;
-                campDown = chessBoard[campDownRowIdx][originCamp.colIdx];
+                campDown = chessBoard[campDownRowIdx][camp.colIdx];
                 if(campDown.type != ''){
                     break;
                 }
             }
             while(campLeftColIdx > 0){
                 campLeftColIdx--;
-                campLeft = chessBoard[originCamp.rowIdx][campLeftColIdx];
+                campLeft = chessBoard[camp.rowIdx][campLeftColIdx];
                 if(campLeft.type != ''){
                     break;
                 }
             }
             while(campRightColIdx < 16){
                 campRightColIdx++;
-                campRight = chessBoard[originCamp.rowIdx][campRightColIdx];
+                campRight = chessBoard[camp.rowIdx][campRightColIdx];
                 if(campRight.type != ''){
                     break;
                 }
