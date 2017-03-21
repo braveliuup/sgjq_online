@@ -235,7 +235,7 @@ function computeAvailCamp(originCamp){
                     availCamps.push(item);
                 }
             }else{
-                if(item.type == '兵站' && canAttack(item, originCamp)) {
+                if((item.type == '兵站' || item.type == '大本营') && canAttack(item, originCamp)) {
                     availCamps.push(item);
                 }
             }
