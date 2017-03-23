@@ -362,6 +362,9 @@ io.on('connection', function(socket){
         players[name].state = state;
         socket.emit('event_pick_success');
         socket.broadcast.emit('event_pick', name, type, state);
+        if(type == 'observer'){
+            return;
+        }
         var pickCount = 0;
         for(var key in  players){
             if(players[key].type =='observer') continue;
@@ -411,7 +414,7 @@ io.on('connection', function(socket){
         kdebug.info('it is turn to '+ nextType);
     });
     socket.on('event_attack', function(type, chessId, targetChessId){
-        kdebug.info(type+':event_attack...');
+        kdebug.info(type+':event_attack...'+chessId +' > ' + targetChessId);
         socket.broadcast.emit('event_attack',  chessId, targetChessId);       
         game.attackChess(chessId, targetChessId);
         var nextType =turnToNext(type);
@@ -421,7 +424,7 @@ io.on('connection', function(socket){
         kdebug.info('it is turn to '+ nextType);
     });
     socket.on('event_exchangeChess_prepare', function(firstCampId, secondCampId){
-        kdebug.info('exchange chess on prepare');
+        kdebug.info('exchange chess on prepare'+firstCampId+ '< >'+ secondCampId);
         game.swapChess(firstCampId, secondCampId);
         socket.broadcast.emit('event_exchangeChess_prepare', firstCampId, secondCampId);
     })
@@ -461,3 +464,4 @@ function findPlayerByType(type){
 
 
 
+// game.init();

@@ -580,9 +580,8 @@ Chess.prototype = {
         computeRotate();
     },
     setCamp: function(camp){
-        this.camp.filledChess = null;
         this.camp = camp;
-        camp.filledChess = this;
+        this.camp.filledChess = this;
     },
     destroy: function(){
         this.camp.filledChess = null;
@@ -836,7 +835,6 @@ Player.prototype = {
     gameStart:function(){
         // 游戏开始
         $('.chess_canvas_'+this.type).bind('click', this.moveChess);
-        // $('.camp_canvas').bind('click', this.exchangeChess);
     },
     offOrder:function(){
          $('.chess_canvas_'+this.type).unbind('click', this.moveChess);
@@ -902,6 +900,7 @@ Player.prototype = {
         var camp = game.camps[targetCamp.id];
         console.log(availCamps)
         if(availCamps.indexOf(camp) != -1){
+            chess.camp.clearFilledChess();
             chess.setCamp(camp);
             chess.redraw();
             return true;
@@ -922,15 +921,20 @@ Player.prototype = {
                 chess.destroy();
                 break;
                 case config.judgment.die:
+                game.dieCommander(chess);
+                game.dieCommander(attackedChess);
                 chess.destroy();
                 attackedChess.destroy();
                 break;
                 case config.judgment.success:
+                game.dieCommander(attackedChess);
                 attackedChess.destroy();
+                chess.camp.clearFilledChess();
                 chess.setCamp(attackedChess.camp);
                 chess.redraw();
                 break;
                 case config.judgment.fail:
+                game.dieCommander(chess);
                 chess.destroy();
                 break;
             }
@@ -945,14 +949,14 @@ Player.prototype = {
         //调配旗子
         if($(e.target).hasClass('chess_selected')){
            $(e.target).removeClass('chess_selected');
-           Player.prototype.firstChess = null; 
+           hichat.player.firstChess = null; 
         }else{
-            if(Player.prototype.firstChess){
-                Player.prototype.swapChess(e.target,Player.prototype.firstChess);
-                $(Player.prototype.firstChess).removeClass('chess_selected');
-                Player.prototype.firstChess = null;
+            if(hichat.player.firstChess){
+                hichat.player.swapChess(e.target,hichat.player.firstChess);
+                $(hichat.player.firstChess).removeClass('chess_selected');
+                hichat.player.firstChess = null;
             }else{
-                Player.prototype.firstChess = e.target;
+                hichat.player.firstChess = e.target;
                 $(e.target).addClass('chess_selected');
             }
         }
@@ -1121,6 +1125,9 @@ HiChat.prototype = {
                 ob.isOnline = true;
                 that.observer = ob;
                 that.refreshObserverState(ob);
+                if(hichat.player.type == type){
+                    document.getElementById('prepareBtn').setAttribute('disabled', true);
+                }
             }else{
                 var player = new Player();
                 player.name = name;
@@ -1179,15 +1186,20 @@ HiChat.prototype = {
                     game.playerOver(attackedChess.type);
                     break;
                     case config.judgment.die:
+                    game.dieCommander(chess);
+                    game.dieCommander(attackedChess);
                     chess.destroy();
                     attackedChess.destroy();
                     break;
                     case config.judgment.success:
+                    game.dieCommander(attackedChess);
                     attackedChess.destroy();
+                    chess.camp.clearFilledChess();
                     chess.setCamp(attackedChess.camp);
                     chess.redraw();
                     break;
                     case config.judgment.fail:
+                    game.dieCommander(chess);
                     chess.destroy();
                     break;
                 }
@@ -1286,6 +1298,7 @@ HiChat.prototype = {
             }else{
                 event.currentTarget.setAttribute('value', '准备');
                 that.player.state = config.state.preparing;
+                that.player.preparing();
             }
             that.refreshPlayerState(that.player);
             that.socket.emit('event_prepare', that.player.name, that.player.state);
@@ -1327,7 +1340,11 @@ HiChat.prototype = {
                     hichat.player.initChess(chessobj);
                     $('#pickDiv input').attr('disabled', true);
                     if(game.state == config.state.preparing && hichat.player.state == config.state.preparing){
-                        $('#prepareBtn').removeAttribute('disabled' );
+                        $('#prepareBtn').removeAttr('disabled' );
+                    }
+                    if(game.state == config.state.preparing && hichat.player.state == config.state.prepared){
+                        $('#prepareBtn').attr('value', '取消准备');
+                        $('#prepareBtn').removeAttr('disabled' );
                     }
                 }  
             }else{
@@ -1379,7 +1396,6 @@ HiChat.prototype = {
             document.getElementById('gameWindow').appendChild(target);
         }
         target.appendChild(span);
-        document.getElementById('prepareBtn').setAttribute('disabled', true);
     },
     initPlayer : function(){
         this.player = new Player();
@@ -1499,17 +1515,16 @@ Game.prototype = {
         blinkblink();
     },
 
-    dieCommander:function(dieCamp){ //如果死的是司令，则该方翻旗
-        if(dieCamp.filledChess.name == '司令'){ 
-            var type = dieCamp.filledChess.type;
-            homeCampIdxAry.forEach(function(item){
-                var ary = item.split(",");
-                var camp = chessBoard[ary[0]][ary[1]];
-                if(camp.filledChess && camp.filledChess.name == '军旗'  && camp.filledChess.type == type){
-                    camp.filledChess.isShowName = true;
-                    camp.drawChess();
+    dieCommander:function(dieChess){ //如果死的是司令，则该方翻旗
+        if(dieChess.name == '司令'){ 
+            var type = dieChess.type;
+            for(var id in this.chesses){
+                if(this.chesses[id].name == '军旗' && this.chesses[id].type == type){
+                    this.chesses[id].isShowName = true;
+                    this.chesses[id].drawChess();
+                    return;
                 }
-            });
+            }
         }
     },
     getType: function(type){
